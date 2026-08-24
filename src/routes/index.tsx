@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const next = todayAppointments[2];
+  const next = todayAppointments[2]!;
 
   return (
     <Screen>

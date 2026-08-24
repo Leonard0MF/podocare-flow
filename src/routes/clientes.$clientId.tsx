@@ -26,7 +26,7 @@ const tabs = ["Resumo", "Histórico", "Anamnese"] as const;
 
 function ClientProfile() {
   const { clientId } = Route.useParams();
-  const client = clients.find((c) => c.id === clientId) ?? clients[0];
+  const client = clients.find((c) => c.id === clientId) ?? clients[0]!;
   const [tab, setTab] = useState<(typeof tabs)[number]>("Resumo");
 
   return (
