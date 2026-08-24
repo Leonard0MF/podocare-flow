@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
+import { Route as AnamneseRouteImport } from './routes/anamnese'
 import { Route as MaisRouteImport } from './routes/mais'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as ClientesIndexRouteImport } from './routes/clientes.index'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const AgendaRoute = AgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnamneseRoute = AnamneseRouteImport.update({
+  id: '/anamnese',
+  path: '/anamnese',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MaisRoute = MaisRouteImport.update({
@@ -50,6 +56,7 @@ const ClientesClientIdRoute = ClientesClientIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/anamnese': typeof AnamneseRoute
   '/mais': typeof MaisRoute
   '/servicos': typeof ServicosRoute
   '/clientes/$clientId': typeof ClientesClientIdRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/anamnese': typeof AnamneseRoute
   '/mais': typeof MaisRoute
   '/servicos': typeof ServicosRoute
   '/clientes/$clientId': typeof ClientesClientIdRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/anamnese': typeof AnamneseRoute
   '/mais': typeof MaisRoute
   '/servicos': typeof ServicosRoute
   '/clientes/$clientId': typeof ClientesClientIdRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agenda'
+    | '/anamnese'
     | '/mais'
     | '/servicos'
     | '/clientes/$clientId'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agenda'
+    | '/anamnese'
     | '/mais'
     | '/servicos'
     | '/clientes/$clientId'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agenda'
+    | '/anamnese'
     | '/mais'
     | '/servicos'
     | '/clientes/$clientId'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
+  AnamneseRoute: typeof AnamneseRoute
   MaisRoute: typeof MaisRoute
   ServicosRoute: typeof ServicosRoute
   ClientesClientIdRoute: typeof ClientesClientIdRoute
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/agenda'
       fullPath: '/agenda'
       preLoaderRoute: typeof AgendaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/anamnese': {
+      id: '/anamnese'
+      path: '/anamnese'
+      fullPath: '/anamnese'
+      preLoaderRoute: typeof AnamneseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mais': {
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
+  AnamneseRoute: AnamneseRoute,
   MaisRoute: MaisRoute,
   ServicosRoute: ServicosRoute,
   ClientesClientIdRoute: ClientesClientIdRoute,
