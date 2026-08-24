@@ -1,8 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, Plus, Search } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
 import { PageHeader, Screen } from "@/components/Screen";
-import { PrimaryButton } from "@/components/PrimaryButton";
-import { clients } from "@/data/mock";
 
 export const Route = createFileRoute("/clientes/")({
   head: () => ({
@@ -10,12 +8,8 @@ export const Route = createFileRoute("/clientes/")({
       { title: "Clientes cadastrados — Podocare" },
       {
         name: "description",
-        content: "Lista de clientes da podóloga com telefone, histórico e fichas de anamnese.",
-      },
-      { property: "og:title", content: "Clientes cadastrados — Podocare" },
-      {
-        property: "og:description",
-        content: "Busque clientes e acesse rapidamente o perfil de cada atendimento.",
+        content:
+          "Lista de clientes da podóloga com telefone, histórico e fichas de anamnese.",
       },
     ],
   }),
@@ -25,10 +19,11 @@ export const Route = createFileRoute("/clientes/")({
 function Clientes() {
   return (
     <Screen>
-      <PageHeader title="Clientes" subtitle="3 cadastrados" />
+      <PageHeader title="Clientes" subtitle="Nenhum cliente cadastrado" />
 
       <div className="relative mb-6">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+
         <input
           type="search"
           placeholder="Buscar cliente..."
@@ -36,30 +31,28 @@ function Clientes() {
         />
       </div>
 
-      <ul className="mb-8 space-y-3">
-        {clients.map((c) => (
-          <li key={c.id}>
-            <Link
-              to="/clientes/$clientId"
-              params={{ clientId: c.id }}
-              className="card-surface flex min-w-0 items-center gap-4 px-4 py-4 transition-shadow hover:shadow-float"
-            >
-              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-accent-soft font-bold text-accent">
-                {c.name.charAt(0)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold">{c.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{c.phone}</span>
-              </span>
-              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <section className="card-surface mb-8 p-8 text-center">
+        <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-primary-soft">
+          <Users className="size-6 text-primary" />
+        </div>
 
-      <PrimaryButton>
-        <Plus className="size-5" /> Novo cliente
-      </PrimaryButton>
+        <h2 className="text-lg font-semibold">
+          Nenhum cliente cadastrado
+        </h2>
+
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Cadastre seu primeiro cliente para começar a organizar
+          seus atendimentos.
+        </p>
+      </section>
+
+      <Link
+        to="/clientes/novo"
+        className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-[15px] font-semibold text-primary-foreground shadow-float transition-opacity hover:opacity-90 active:scale-[0.99]"
+      >
+        <Plus className="size-5" />
+        Novo cliente
+      </Link>
     </Screen>
   );
 }

@@ -25,7 +25,11 @@ export const Route = createFileRoute("/anamnese")({
 function Anamnese() {
   return (
     <Screen>
-      <PageHeader title="Ficha de Anamnese" subtitle="Ana Souza · 24 de agosto" back="/clientes" />
+      <PageHeader
+  title="Ficha de Anamnese"
+  subtitle="Ana Souza · 24 de agosto"
+  back="/mais"
+/>
 
       <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
         <Section title="Dados pessoais">

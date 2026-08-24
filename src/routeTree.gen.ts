@@ -14,8 +14,11 @@ import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AnamneseRouteImport } from './routes/anamnese'
 import { Route as MaisRouteImport } from './routes/mais'
 import { Route as ServicosRouteImport } from './routes/servicos'
+import { Route as AtendimentoNovoRouteImport } from './routes/atendimento.novo'
 import { Route as ClientesIndexRouteImport } from './routes/clientes.index'
 import { Route as ClientesClientIdRouteImport } from './routes/clientes.$clientId'
+import { Route as ClientesNovoRouteImport } from './routes/clientes.novo'
+import { Route as ServicosNovoRouteImport } from './routes/servicos_.novo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -42,6 +45,11 @@ const ServicosRoute = ServicosRouteImport.update({
   path: '/servicos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AtendimentoNovoRoute = AtendimentoNovoRouteImport.update({
+  id: '/atendimento/novo',
+  path: '/atendimento/novo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientesIndexRoute = ClientesIndexRouteImport.update({
   id: '/clientes/',
   path: '/clientes/',
@@ -52,6 +60,16 @@ const ClientesClientIdRoute = ClientesClientIdRouteImport.update({
   path: '/clientes/$clientId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientesNovoRoute = ClientesNovoRouteImport.update({
+  id: '/clientes/novo',
+  path: '/clientes/novo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServicosNovoRoute = ServicosNovoRouteImport.update({
+  id: '/servicos_/novo',
+  path: '/servicos/novo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -59,7 +77,10 @@ export interface FileRoutesByFullPath {
   '/anamnese': typeof AnamneseRoute
   '/mais': typeof MaisRoute
   '/servicos': typeof ServicosRoute
+  '/atendimento/novo': typeof AtendimentoNovoRoute
   '/clientes/$clientId': typeof ClientesClientIdRoute
+  '/clientes/novo': typeof ClientesNovoRoute
+  '/servicos/novo': typeof ServicosNovoRoute
   '/clientes/': typeof ClientesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -68,7 +89,10 @@ export interface FileRoutesByTo {
   '/anamnese': typeof AnamneseRoute
   '/mais': typeof MaisRoute
   '/servicos': typeof ServicosRoute
+  '/atendimento/novo': typeof AtendimentoNovoRoute
   '/clientes/$clientId': typeof ClientesClientIdRoute
+  '/clientes/novo': typeof ClientesNovoRoute
+  '/servicos/novo': typeof ServicosNovoRoute
   '/clientes': typeof ClientesIndexRoute
 }
 export interface FileRoutesById {
@@ -78,7 +102,10 @@ export interface FileRoutesById {
   '/anamnese': typeof AnamneseRoute
   '/mais': typeof MaisRoute
   '/servicos': typeof ServicosRoute
+  '/atendimento/novo': typeof AtendimentoNovoRoute
   '/clientes/$clientId': typeof ClientesClientIdRoute
+  '/clientes/novo': typeof ClientesNovoRoute
+  '/servicos_/novo': typeof ServicosNovoRoute
   '/clientes/': typeof ClientesIndexRoute
 }
 export interface FileRouteTypes {
@@ -89,7 +116,10 @@ export interface FileRouteTypes {
     | '/anamnese'
     | '/mais'
     | '/servicos'
+    | '/atendimento/novo'
     | '/clientes/$clientId'
+    | '/clientes/novo'
+    | '/servicos/novo'
     | '/clientes/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -98,7 +128,10 @@ export interface FileRouteTypes {
     | '/anamnese'
     | '/mais'
     | '/servicos'
+    | '/atendimento/novo'
     | '/clientes/$clientId'
+    | '/clientes/novo'
+    | '/servicos/novo'
     | '/clientes'
   id:
     | '__root__'
@@ -107,7 +140,10 @@ export interface FileRouteTypes {
     | '/anamnese'
     | '/mais'
     | '/servicos'
+    | '/atendimento/novo'
     | '/clientes/$clientId'
+    | '/clientes/novo'
+    | '/servicos_/novo'
     | '/clientes/'
   fileRoutesById: FileRoutesById
 }
@@ -117,7 +153,10 @@ export interface RootRouteChildren {
   AnamneseRoute: typeof AnamneseRoute
   MaisRoute: typeof MaisRoute
   ServicosRoute: typeof ServicosRoute
+  AtendimentoNovoRoute: typeof AtendimentoNovoRoute
   ClientesClientIdRoute: typeof ClientesClientIdRoute
+  ClientesNovoRoute: typeof ClientesNovoRoute
+  ServicosNovoRoute: typeof ServicosNovoRoute
   ClientesIndexRoute: typeof ClientesIndexRoute
 }
 
@@ -158,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/atendimento/novo': {
+      id: '/atendimento/novo'
+      path: '/atendimento/novo'
+      fullPath: '/atendimento/novo'
+      preLoaderRoute: typeof AtendimentoNovoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/clientes/': {
       id: '/clientes/'
       path: '/clientes'
@@ -172,6 +218,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientesClientIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/clientes/novo': {
+      id: '/clientes/novo'
+      path: '/clientes/novo'
+      fullPath: '/clientes/novo'
+      preLoaderRoute: typeof ClientesNovoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/servicos_/novo': {
+      id: '/servicos_/novo'
+      path: '/servicos/novo'
+      fullPath: '/servicos/novo'
+      preLoaderRoute: typeof ServicosNovoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -181,7 +241,10 @@ const rootRouteChildren: RootRouteChildren = {
   AnamneseRoute: AnamneseRoute,
   MaisRoute: MaisRoute,
   ServicosRoute: ServicosRoute,
+  AtendimentoNovoRoute: AtendimentoNovoRoute,
   ClientesClientIdRoute: ClientesClientIdRoute,
+  ClientesNovoRoute: ClientesNovoRoute,
+  ServicosNovoRoute: ServicosNovoRoute,
   ClientesIndexRoute: ClientesIndexRoute,
 }
 export const routeTree = rootRouteImport
