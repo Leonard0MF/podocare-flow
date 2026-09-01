@@ -296,21 +296,22 @@ function PreencherAnamnese() {
           "id, client_id, public_token, status",
         )
         .maybeSingle();
+if (updateError) {
+  console.error("Erro ao salvar ficha:", {
+    message: updateError.message,
+    code: updateError.code,
+    details: updateError.details,
+    hint: updateError.hint,
+  });
 
-    if (updateError) {
-      console.error(
-        "Erro ao salvar ficha:",
-        updateError,
-      );
+  setSubmitting(false);
 
-      setSubmitting(false);
+  setError(
+    "Não foi possível enviar a ficha. Tente novamente.",
+  );
 
-      setError(
-        "Não foi possível enviar a ficha. Tente novamente.",
-      );
-
-      return;
-    }
+  return;
+}
 
     /*
      * Se não retornou nenhuma linha, provavelmente
