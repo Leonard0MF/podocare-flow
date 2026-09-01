@@ -146,6 +146,7 @@ function Home() {
   const navigate = useNavigate();
 
   const [authLoading, setAuthLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
 
   const [name, setName] = useState("usuário");
 
@@ -159,36 +160,149 @@ function Home() {
 
   const greeting = getGreeting();
 
+  /*
+   * ============================================================
+   * AUTENTICAÇÃO
+   * ============================================================
+   *
+   * A autenticação é verificada no navegador.
+   *
+   * Não usamos beforeLoad/getSession para proteger esta rota,
+   * porque esta aplicação usa o cliente Supabase no browser e
+   * a sessão fica armazenada no navegador.
+   */
   useEffect(() => {
     let mounted = true;
 
+    async function checkAuth() {
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error(
+            "Erro ao verificar sessão:",
+            sessionError,
+          );
+
+          if (mounted) {
+            setAuthenticated(false);
+            setAuthLoading(false);
+          }
+
+          return;
+        }
+
+        if (!session) {
+          if (mounted) {
+            setAuthenticated(false);
+            setAuthLoading(false);
+          }
+
+          await navigate({
+            to: "/login",
+            replace: true,
+          });
+
+          return;
+        }
+
+        if (mounted) {
+          setAuthenticated(true);
+          setAuthLoading(false);
+        }
+      } catch (authError) {
+        console.error(
+          "Erro inesperado ao verificar autenticação:",
+          authError,
+        );
+
+        if (mounted) {
+          setAuthenticated(false);
+          setAuthLoading(false);
+        }
+
+        await navigate({
+          to: "/login",
+          replace: true,
+        });
+      }
+    }
+
+    checkAuth();
+
+    /*
+     * Mantém a Home sincronizada caso o usuário faça login,
+     * logout ou a sessão seja renovada.
+     */
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) {
+          return;
+        }
+
+        if (session) {
+          setAuthenticated(true);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (
+          event === "SIGNED_OUT" ||
+          event === "INITIAL_SESSION"
+        ) {
+          setAuthenticated(false);
+          setAuthLoading(false);
+
+          await navigate({
+            to: "/login",
+            replace: true,
+          });
+        }
+      },
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  /*
+   * ============================================================
+   * CARREGAMENTO DA HOME
+   * ============================================================
+   */
+  useEffect(() => {
+    if (authLoading || !authenticated) {
+      return;
+    }
+
     async function loadHome() {
-      setAuthLoading(true);
       setLoadingAppointments(true);
       setError("");
 
-      /*
-       * A verificação é feita no cliente.
-       *
-       * Isso é importante porque o Supabase mantém a sessão
-       * no navegador e o SSR do Vercel não consegue acessar
-       * essa sessão dessa forma.
-       */
       const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      if (!mounted) {
-        return;
-      }
-
-      if (sessionError) {
+      if (userError) {
         console.error(
-          "Erro ao verificar sessão:",
-          sessionError,
+          "Erro ao obter usuário:",
+          userError,
         );
 
+        setError(
+          "Não foi possível verificar sua sessão.",
+        );
+
+        setLoadingAppointments(false);
+
         await navigate({
           to: "/login",
           replace: true,
@@ -197,11 +311,9 @@ function Home() {
         return;
       }
 
-      /*
-       * Usuário não autenticado:
-       * manda imediatamente para o login.
-       */
-      if (!session) {
+      if (!user) {
+        setLoadingAppointments(false);
+
         await navigate({
           to: "/login",
           replace: true,
@@ -210,11 +322,6 @@ function Home() {
         return;
       }
 
-      const user = session.user;
-
-      /*
-       * Recupera o nome salvo nos metadados do usuário.
-       */
       const userName = user.user_metadata?.["name"];
 
       if (
@@ -226,34 +333,29 @@ function Home() {
         );
       }
 
-      /*
-       * Busca os atendimentos do usuário autenticado.
-       */
-      const { data, error: appointmentsError } =
-        await supabase
-          .from("appointments")
-          .select(`
-            id,
-            appointment_date,
-            appointment_time,
-            status,
-            client:clients (
-              name
-            ),
-            service:services (
-              name,
-              duration
-            )
-          `)
-          .eq("user_id", user.id)
-          .eq("appointment_date", today)
-          .order("appointment_time", {
-            ascending: true,
-          });
-
-      if (!mounted) {
-        return;
-      }
+      const {
+        data,
+        error: appointmentsError,
+      } = await supabase
+        .from("appointments")
+        .select(`
+          id,
+          appointment_date,
+          appointment_time,
+          status,
+          client:clients (
+            name
+          ),
+          service:services (
+            name,
+            duration
+          )
+        `)
+        .eq("user_id", user.id)
+        .eq("appointment_date", today)
+        .order("appointment_time", {
+          ascending: true,
+        });
 
       if (appointmentsError) {
         console.error(
@@ -266,7 +368,6 @@ function Home() {
         );
 
         setLoadingAppointments(false);
-        setAuthLoading(false);
         return;
       }
 
@@ -278,8 +379,7 @@ function Home() {
           appointment.appointment_date,
         appointment_time:
           appointment.appointment_time,
-        status:
-          appointment.status ?? "agendado",
+        status: appointment.status ?? "agendado",
 
         client: Array.isArray(appointment.client)
           ? appointment.client[0] ?? null
@@ -292,48 +392,60 @@ function Home() {
 
       setAppointments(formattedAppointments);
       setLoadingAppointments(false);
-      setAuthLoading(false);
     }
 
     loadHome();
-
-    return () => {
-      mounted = false;
-    };
-  }, [today, navigate]);
+  }, [
+    authLoading,
+    authenticated,
+    navigate,
+    today,
+  ]);
 
   /*
-   * Enquanto estamos verificando a sessão,
-   * não renderizamos a Home.
+   * ============================================================
+   * TELA DE CARREGAMENTO
+   * ============================================================
    *
-   * Isso evita mostrar "Bom dia, usuário" por um instante
-   * antes do redirecionamento para /login.
+   * Muito importante:
+   *
+   * Enquanto não sabemos se existe sessão, NÃO renderizamos
+   * a Home.
+   *
+   * Isso impede aparecer:
+   *
+   * "Bom dia, usuário"
+   * "Usuário não autenticado"
+   *
+   * antes do redirecionamento.
    */
-  if (authLoading) {
+  if (authLoading || !authenticated) {
     return (
-      <Screen>
-        <div className="flex min-h-[70vh] items-center justify-center">
-          <p className="text-sm text-muted-foreground">
+      <main className="flex min-h-screen items-center justify-center bg-background px-5">
+        <div className="text-center">
+          <div className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-primary-soft">
+            <Sun className="size-6 animate-pulse text-primary" />
+          </div>
+
+          <p className="text-sm font-medium text-muted-foreground">
             Verificando sua sessão...
           </p>
         </div>
-      </Screen>
+      </main>
     );
   }
 
-  const activeAppointments = useMemo(() => {
-    return appointments.filter(
-      (appointment) =>
-        appointment.status !== "cancelado" &&
-        appointment.status !== "faltou",
-    );
-  }, [appointments]);
+  const activeAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status !== "cancelado" &&
+      appointment.status !== "faltou",
+  );
 
   const currentMinutes =
     getCurrentTimeInMinutes();
 
-  const nextAppointment = useMemo(() => {
-    return activeAppointments.find(
+  const nextAppointment =
+    activeAppointments.find(
       (appointment) =>
         timeToMinutes(
           normalizeTime(
@@ -341,10 +453,6 @@ function Home() {
           ),
         ) >= currentMinutes,
     );
-  }, [
-    activeAppointments,
-    currentMinutes,
-  ]);
 
   const hasAppointments =
     appointments.length > 0;
