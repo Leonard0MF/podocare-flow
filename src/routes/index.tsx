@@ -1,4 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+} from "@tanstack/react-router";
 import {
   CalendarDays,
   Clock,
@@ -60,8 +64,7 @@ function getToday() {
 }
 
 function formatLongDate(value: string) {
-  const [year = "", month = "", day = ""] =
-    value.split("-");
+  const [year = "", month = "", day = ""] = value.split("-");
 
   const date = new Date(
     Number(year),
@@ -141,6 +144,8 @@ function getStatusClass(status: string) {
 }
 
 function Home() {
+  const navigate = useNavigate();
+
   const [name, setName] = useState("usuário");
 
   const [appointments, setAppointments] = useState<
@@ -166,8 +171,11 @@ function Home() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setError("Usuário não autenticado.");
-        setLoadingAppointments(false);
+        navigate({
+          to: "/login",
+          replace: true,
+        });
+
         return;
       }
 
@@ -242,7 +250,7 @@ function Home() {
     }
 
     loadHome();
-  }, [today]);
+  }, [today, navigate]);
 
   const activeAppointments = useMemo(() => {
     return appointments.filter(
@@ -271,10 +279,6 @@ function Home() {
 
   return (
     <Screen>
-      {/* 
-        Espaço inferior reservado para que o botão
-        fixo não cubra o conteúdo da página.
-      */}
       <div className="pb-24">
         <header className="mb-7">
           <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">
@@ -490,11 +494,6 @@ function Home() {
         </section>
       </div>
 
-      {/* 
-        BOTÃO FIXO
-        Fica sempre acessível, independentemente
-        da posição da página.
-      */}
       <Link
         to="/atendimento/novo"
         aria-label="Novo atendimento"
