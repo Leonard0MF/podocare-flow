@@ -1,328 +1,217 @@
-# Podocare Flow
+# 🩺 Podocare
 
-Crie apenas o FRONTEND VISUAL de um aplicativo mobile-first chamado "Podocare".
+Sistema de gestão desenvolvido para profissionais de podologia, com foco em organização de pacientes, anamneses e atendimento.
 
-IMPORTANTE:
-Nesta etapa NÃO crie backend.
-NÃO use Supabase.
-NÃO crie banco de dados.
-NÃO crie autenticação.
-NÃO crie APIs.
-NÃO implemente lógica complexa.
-NÃO implemente notificações reais.
+O Podocare permite que a profissional gerencie seus pacientes e envie fichas de anamnese através de um **link público e único**, permitindo que o paciente preencha seus dados pelo celular **sem precisar criar uma conta ou fazer login**.
 
-Quero apenas uma interface visual navegável usando dados fictícios.
+## ✨ Funcionalidades
 
-STACK:
-- React
-- TypeScript
-- Tailwind CSS
-- Lucide Icons
+* 🔐 Autenticação da profissional
+* 👥 Cadastro e gerenciamento de pacientes
+* 📋 Criação de fichas de anamnese
+* 🔗 Geração de links públicos individuais
+* 📱 Formulário de anamnese otimizado para dispositivos móveis
+* 💬 Compartilhamento da ficha pelo WhatsApp
+* ✅ Controle de status da ficha
+
+  * Aguardando preenchimento
+  * Preenchida
+* 👁️ Visualização das fichas preenchidas
+* 🔒 Controle de acesso utilizando Row Level Security (RLS)
+* ☁️ Integração com Supabase
+
+## 🛠️ Tecnologias
+
+### Front-end
+
+* React
+* TypeScript
+* TanStack Router
+* TanStack Query
+* Tailwind CSS
+* Lucide React
+* Vite
 
-O aplicativo será utilizado principalmente no celular por uma podóloga.
+### Back-end / Infraestrutura
 
-ESTILO:
+* Supabase
 
-Quero um design moderno, elegante, limpo e profissional.
+  * PostgreSQL
+  * Supabase Auth
+  * Row Level Security (RLS)
+* Vercel
 
-Não quero aparência de sistema empresarial genérico.
+## 🔐 Arquitetura de acesso
 
-O visual deve transmitir:
-- Saúde
-- Cuidado
-- Higiene
-- Confiança
-- Profissionalismo
+O sistema possui dois fluxos diferentes de acesso.
 
-Use:
-- Fundo claro
-- Branco
-- Azul/verde suave como cores de destaque
-- Cards com bordas arredondadas
-- Sombras muito discretas
-- Tipografia moderna
-- Ícones simples
-- Bastante espaço entre os elementos
+### Profissional
 
-Prioridade absoluta para telas de celular.
+A profissional possui uma conta autenticada e pode acessar as áreas privadas do sistema:
 
-Crie uma navegação inferior fixa:
+```text
+Login
+  ↓
+Dashboard
+  ↓
+Pacientes
+  ↓
+Anamneses
+```
 
-Início
-Agenda
-Clientes
-Mais
+O acesso aos dados da profissional é protegido pelo Supabase Auth e pelas políticas de RLS.
 
-==================================================
-TELA INÍCIO
-==================================================
+### Paciente
 
-Criar um dashboard simples.
+O paciente não precisa possuir uma conta.
 
-Mostrar:
+Ao criar uma ficha, o sistema gera um token único:
 
-"Bom dia, Ana"
+```text
+/ficha/{token}
+```
 
-"Segunda-feira, 24 de agosto"
+Esse link pode ser enviado diretamente pelo WhatsApp.
 
-Um card grande:
+O paciente acessa o formulário, preenche as informações e envia a ficha. Após o envio, a ficha passa a ter o status:
 
-PRÓXIMO ATENDIMENTO
+```text
+preenchida
+```
 
-13:30
-Ana Souza
+A profissional consegue então visualizar os dados dentro do sistema.
 
-Podologia preventiva
+## 📋 Fluxo da anamnese
 
-R$ 100,00
+```text
+Profissional
+     │
+     ▼
+Seleciona paciente
+     │
+     ▼
+Cria ficha
+     │
+     ▼
+Token único gerado
+     │
+     ▼
+Link público
+     │
+     ▼
+WhatsApp
+     │
+     ▼
+Paciente
+     │
+     ▼
+Preenche ficha
+     │
+     ▼
+Envia
+     │
+     ▼
+Ficha marcada como preenchida
+     │
+     ▼
+Profissional visualiza
+```
 
-Depois:
+## 🔒 Segurança
 
-"Atendimentos de hoje"
+O Podocare utiliza políticas de **Row Level Security (RLS)** no PostgreSQL do Supabase para controlar o acesso aos dados.
 
-08:30 — Maria Oliveira
-10:00 — Carla Mendes
-13:30 — Ana Souza
-15:00 — João Santos
+As informações da profissional são vinculadas ao seu usuário autenticado.
 
-Adicionar um botão destacado:
+As fichas públicas utilizam tokens únicos para permitir que o paciente acesse somente o fluxo necessário para preenchimento, sem necessidade de autenticação.
 
-"+ Novo atendimento"
+> As políticas de segurança devem ser revisadas e endurecidas antes de utilizar o sistema em um ambiente com dados reais de pacientes.
 
-Não adicionar gráficos.
+## 🚀 Como executar localmente
 
-==================================================
-TELA AGENDA
-==================================================
+### 1. Clone o repositório
 
-Criar uma agenda visual.
+```bash
+git clone https://github.com/seu-usuario/podocare.git
+cd podocare
+```
 
-No topo:
+### 2. Instale as dependências
 
-Agenda
-Hoje, 24 de agosto
+```bash
+npm install
+```
 
-Botões:
+### 3. Configure as variáveis de ambiente
 
-Dia | Semana | Mês
+Crie um arquivo `.env.local`:
 
-A visualização principal deve ser uma timeline.
+```env
+VITE_SUPABASE_URL=seu_supabase_url
+VITE_SUPABASE_PUBLISHABLE_KEY=sua_publishable_key
+```
 
-Exemplo:
+### 4. Execute o projeto
 
-08:00
-08:30
-09:00
-09:30
-10:00
-
-Os atendimentos aparecem como cards posicionados nos horários.
-
-Exemplo:
-
-13:30 — 14:30
-
-Ana Souza
-Podologia preventiva
-
-R$ 100,00
-
-Criar aparência semelhante a uma agenda de aplicativo moderno.
-
-==================================================
-TELA CLIENTES
-==================================================
-
-Título:
-
-Clientes
-
-Campo de busca:
-
-"Buscar cliente..."
-
-Lista:
-
-Ana Souza
-(51) 99999-0000
-
-Maria Oliveira
-(51) 98888-0000
-
-Carla Mendes
-(51) 97777-0000
-
-Cada cliente deve ser um card clicável.
-
-Adicionar botão:
-
-"+ Novo cliente"
-
-==================================================
-PERFIL DO CLIENTE
-==================================================
-
-Criar uma página de perfil.
-
-Mostrar:
-
-Ana Souza
-
-CPF: 000.000.000-00
-Telefone: (51) 99999-0000
-Nascimento: 12/03/1990
-
-Criar abas:
-
-Resumo
-Histórico
-Anamnese
-
-No histórico mostrar:
-
-24 AGO
-Podologia preventiva
-R$ 100,00
-Pix
-
-10 AGO
-Tratamento de unha
-R$ 120,00
-Cartão
-
-Adicionar botão:
-
-"Nova ficha de anamnese"
-
-==================================================
-TELA ANAMNESE
-==================================================
-
-Criar somente o visual do formulário.
-
-Título:
-
-Ficha de Anamnese
-
-Seções em cards:
-
-Dados pessoais
-
-Queixa principal
-
-Histórico
-
-Condições de saúde
-
-Alergias
-
-Medicamentos
-
-Avaliação dos pés
-
-Observações
-
-Procedimento realizado
-
-Recomendações
-
-Usar inputs, selects, checkboxes e campos de texto adequados.
-
-O formulário não precisa salvar nada nesta etapa.
-
-==================================================
-TELA SERVIÇOS
-==================================================
-
-Criar uma lista visual de serviços.
-
-Exemplo:
-
-Podologia preventiva
-R$ 100,00
-60 minutos
-
-Tratamento de unha encravada
-R$ 120,00
-60 minutos
-
-Remoção de calosidade
-R$ 80,00
-45 minutos
-
-Botão:
-
-"+ Novo serviço"
-
-==================================================
-TELA MAIS
-==================================================
-
-Criar um menu simples contendo:
-
-Serviços
-Anamnese
-Configurações
-Notificações
-Perfil
-
-==================================================
-RESPONSIVIDADE
-==================================================
-
-A aplicação deve ser pensada primeiro para:
-
-390x844
-
-Depois adaptar para tablets e desktop.
-
-No celular:
-
-- Navegação inferior fixa
-- Botões fáceis de tocar
-- Inputs grandes
-- Cards bem espaçados
-- Nada deve ficar apertado
-- Não utilizar tabelas largas
-- Não criar barras laterais no mobile
-
-==================================================
-IMPORTANTE
-==================================================
-
-Nesta primeira etapa quero SOMENTE o visual.
-
-Use dados fictícios para preencher as telas.
-
-As telas devem ser navegáveis entre si para podermos testar a experiência.
-
-Não implemente nenhuma funcionalidade real.
-
-Não tente criar banco de dados.
-
-Não tente criar autenticação.
-
-Não tente criar backend.
-
-Priorize qualidade visual e experiência de usuário.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/131df435-3f05-4e60-a534-1d1bb6e26f81).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+```bash
 npm run dev
 ```
+
+O projeto estará disponível em:
+
+```text
+http://localhost:8080
+```
+
+## 📦 Build
+
+Para gerar a versão de produção:
+
+```bash
+npm run build
+```
+
+Para testar o build localmente:
+
+```bash
+npm run preview
+```
+
+## 🌐 Deploy
+
+O projeto pode ser hospedado na **Vercel**.
+
+As mesmas variáveis de ambiente utilizadas localmente devem ser configuradas no projeto da Vercel:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_PUBLISHABLE_KEY
+```
+
+## 📱 Responsividade
+
+A interface foi desenvolvida com abordagem **mobile-first**, considerando principalmente o uso pelo celular durante o atendimento e o preenchimento da ficha pelo paciente.
+
+## 🎯 Objetivo do projeto
+
+O Podocare foi desenvolvido com o objetivo de transformar tarefas administrativas comuns de uma profissional de podologia em um fluxo digital simples, centralizado e acessível.
+
+O projeto também demonstra a aplicação prática de:
+
+* React + TypeScript
+* Autenticação
+* Banco de dados relacional
+* RLS
+* Rotas públicas e privadas
+* Formulários
+* Integração com WhatsApp
+* Arquitetura de aplicações web
+* Deploy em produção
+
+## 👨‍💻 Desenvolvimento
+
+Projeto desenvolvido como aplicação web utilizando tecnologias modernas do ecossistema React.
+
+---
+
+**Podocare — Gestão simples para uma rotina de atendimento mais organizada.**
