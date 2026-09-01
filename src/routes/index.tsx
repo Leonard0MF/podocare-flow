@@ -1,6 +1,7 @@
 import {
   createFileRoute,
   Link,
+  redirect,
   useNavigate,
 } from "@tanstack/react-router";
 import {
@@ -13,8 +14,24 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: async () => {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      throw redirect({
+        to: "/login",
+        replace: true,
+      });
+    }
+
+    return {
+      user,
+    };
+  },
+
   head: () => ({
     meta: [
       {

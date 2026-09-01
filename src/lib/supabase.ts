@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"];
 const supabasePublishableKey =
@@ -8,7 +8,7 @@ if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error("Variáveis do Supabase não configuradas.");
 }
 
-export const supabase = createClient(
+export const supabase = createBrowserClient(
   supabaseUrl,
   supabasePublishableKey,
 );
