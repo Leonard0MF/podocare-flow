@@ -14,22 +14,20 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
-  beforeLoad: async () => {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      throw redirect({
-        to: "/login",
-        replace: true,
-      });
+  /*
+   * Roda NO SERVIDOR antes de renderizar qualquer coisa.
+   *
+   * `context.user` vem do beforeLoad da rota raiz
+   * (__root.tsx), que já leu a sessão do cookie. Se não tem
+   * usuário, redireciona pro /login ANTES de mandar HTML pro
+   * navegador — não existe mais o flash da Home.
+   */
+  beforeLoad: ({ context }) => {
+    if (!context.user) {
+      throw redirect({ to: "/login" });
     }
-
-    return {
-      user,
-    };
   },
 
   head: () => ({
@@ -162,9 +160,6 @@ function getStatusClass(status: string) {
 function Home() {
   const navigate = useNavigate();
 
-  const [authLoading, setAuthLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
-
   const [name, setName] = useState("usuário");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -179,126 +174,20 @@ function Home() {
 
   /*
    * ============================================================
-   * AUTENTICAÇÃO
-   * ============================================================
-   *
-   * A autenticação é verificada no navegador.
-   *
-   * Não usamos beforeLoad/getSession para proteger esta rota,
-   * porque esta aplicação usa o cliente Supabase no browser e
-   * a sessão fica armazenada no navegador.
-   */
-  useEffect(() => {
-    let mounted = true;
-
-    async function checkAuth() {
-      try {
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error(
-            "Erro ao verificar sessão:",
-            sessionError,
-          );
-
-          if (mounted) {
-            setAuthenticated(false);
-            setAuthLoading(false);
-          }
-
-          return;
-        }
-
-        if (!session) {
-          if (mounted) {
-            setAuthenticated(false);
-            setAuthLoading(false);
-          }
-
-          await navigate({
-            to: "/login",
-            replace: true,
-          });
-
-          return;
-        }
-
-        if (mounted) {
-          setAuthenticated(true);
-          setAuthLoading(false);
-        }
-      } catch (authError) {
-        console.error(
-          "Erro inesperado ao verificar autenticação:",
-          authError,
-        );
-
-        if (mounted) {
-          setAuthenticated(false);
-          setAuthLoading(false);
-        }
-
-        await navigate({
-          to: "/login",
-          replace: true,
-        });
-      }
-    }
-
-    checkAuth();
-
-    /*
-     * Mantém a Home sincronizada caso o usuário faça login,
-     * logout ou a sessão seja renovada.
-     */
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) {
-          return;
-        }
-
-        if (session) {
-          setAuthenticated(true);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (
-          event === "SIGNED_OUT" ||
-          event === "INITIAL_SESSION"
-        ) {
-          setAuthenticated(false);
-          setAuthLoading(false);
-
-          await navigate({
-            to: "/login",
-            replace: true,
-          });
-        }
-      },
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [navigate]);
-
-  /*
-   * ============================================================
    * CARREGAMENTO DA HOME
    * ============================================================
+   *
+   * Não precisamos mais checar sessão aqui: o `beforeLoad`
+   * desta rota já garante (no servidor) que só chegamos até
+   * aqui se existir um usuário logado.
+   *
+   * Ainda assim, mantemos uma checagem de segurança: se por
+   * algum motivo a sessão não estiver mais válida no momento
+   * em que o navegador busca os dados (ex: token expirou entre
+   * o SSR e a hidratação), redirecionamos pro login em vez de
+   * mostrar erro na tela.
    */
   useEffect(() => {
-    if (authLoading || !authenticated) {
-      return;
-    }
-
     async function loadHome() {
       setLoadingAppointments(true);
       setError("");
@@ -312,10 +201,6 @@ function Home() {
         console.error(
           "Erro ao obter usuário:",
           userError,
-        );
-
-        setError(
-          "Não foi possível verificar sua sessão.",
         );
 
         setLoadingAppointments(false);
@@ -412,45 +297,7 @@ function Home() {
     }
 
     loadHome();
-  }, [
-    authLoading,
-    authenticated,
-    navigate,
-    today,
-  ]);
-
-  /*
-   * ============================================================
-   * TELA DE CARREGAMENTO
-   * ============================================================
-   *
-   * Muito importante:
-   *
-   * Enquanto não sabemos se existe sessão, NÃO renderizamos
-   * a Home.
-   *
-   * Isso impede aparecer:
-   *
-   * "Bom dia, usuário"
-   * "Usuário não autenticado"
-   *
-   * antes do redirecionamento.
-   */
-  if (authLoading || !authenticated) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-5">
-        <div className="text-center">
-          <div className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-primary-soft">
-            <Sun className="size-6 animate-pulse text-primary" />
-          </div>
-
-          <p className="text-sm font-medium text-muted-foreground">
-            Verificando sua sessão...
-          </p>
-        </div>
-      </main>
-    );
-  }
+  }, [navigate, today]);
 
   const activeAppointments = appointments.filter(
     (appointment) =>
