@@ -12,13 +12,23 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AnamneseRouteImport } from './routes/anamnese'
+import { Route as CadastroRouteImport } from './routes/cadastro'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaisRouteImport } from './routes/mais'
+import { Route as NotificacoesRouteImport } from './routes/notificacoes'
+import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as AtendimentoNovoRouteImport } from './routes/atendimento.novo'
 import { Route as ClientesIndexRouteImport } from './routes/clientes.index'
 import { Route as ClientesClientIdRouteImport } from './routes/clientes.$clientId'
 import { Route as ClientesNovoRouteImport } from './routes/clientes.novo'
+import { Route as FichaTokenRouteImport } from './routes/ficha/$token'
 import { Route as ServicosNovoRouteImport } from './routes/servicos_.novo'
+import { Route as AnamneseVisualizarIdRouteImport } from './routes/anamnese/visualizar.$id'
+import { Route as ClientesClientIdIndexRouteImport } from './routes/clientes.$clientId.index'
+import { Route as ClientesClientIdEditarRouteImport } from './routes/clientes.$clientId.editar'
+import { Route as ServicosServiceIdEditarRouteImport } from './routes/servicos_.$serviceId.editar'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -35,9 +45,34 @@ const AnamneseRoute = AnamneseRouteImport.update({
   path: '/anamnese',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CadastroRoute = CadastroRouteImport.update({
+  id: '/cadastro',
+  path: '/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MaisRoute = MaisRouteImport.update({
   id: '/mais',
   path: '/mais',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificacoesRoute = NotificacoesRouteImport.update({
+  id: '/notificacoes',
+  path: '/notificacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PerfilRoute = PerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ServicosRoute = ServicosRouteImport.update({
@@ -65,48 +100,102 @@ const ClientesNovoRoute = ClientesNovoRouteImport.update({
   path: '/clientes/novo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FichaTokenRoute = FichaTokenRouteImport.update({
+  id: '/ficha/$token',
+  path: '/ficha/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServicosNovoRoute = ServicosNovoRouteImport.update({
   id: '/servicos_/novo',
   path: '/servicos/novo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnamneseVisualizarIdRoute = AnamneseVisualizarIdRouteImport.update({
+  id: '/visualizar/$id',
+  path: '/visualizar/$id',
+  getParentRoute: () => AnamneseRoute,
+} as any)
+const ClientesClientIdIndexRoute = ClientesClientIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClientesClientIdRoute,
+} as any)
+const ClientesClientIdEditarRoute = ClientesClientIdEditarRouteImport.update({
+  id: '/editar',
+  path: '/editar',
+  getParentRoute: () => ClientesClientIdRoute,
+} as any)
+const ServicosServiceIdEditarRoute = ServicosServiceIdEditarRouteImport.update({
+  id: '/servicos_/$serviceId/editar',
+  path: '/servicos/$serviceId/editar',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/anamnese': typeof AnamneseRoute
+  '/anamnese': typeof AnamneseRouteWithChildren
+  '/cadastro': typeof CadastroRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/login': typeof LoginRoute
   '/mais': typeof MaisRoute
+  '/notificacoes': typeof NotificacoesRoute
+  '/perfil': typeof PerfilRoute
   '/servicos': typeof ServicosRoute
   '/atendimento/novo': typeof AtendimentoNovoRoute
-  '/clientes/$clientId': typeof ClientesClientIdRoute
+  '/clientes/$clientId': typeof ClientesClientIdRouteWithChildren
   '/clientes/novo': typeof ClientesNovoRoute
+  '/ficha/$token': typeof FichaTokenRoute
   '/servicos/novo': typeof ServicosNovoRoute
   '/clientes/': typeof ClientesIndexRoute
+  '/anamnese/visualizar/$id': typeof AnamneseVisualizarIdRoute
+  '/clientes/$clientId/editar': typeof ClientesClientIdEditarRoute
+  '/servicos/$serviceId/editar': typeof ServicosServiceIdEditarRoute
+  '/clientes/$clientId/': typeof ClientesClientIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/anamnese': typeof AnamneseRoute
+  '/anamnese': typeof AnamneseRouteWithChildren
+  '/cadastro': typeof CadastroRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/login': typeof LoginRoute
   '/mais': typeof MaisRoute
+  '/notificacoes': typeof NotificacoesRoute
+  '/perfil': typeof PerfilRoute
   '/servicos': typeof ServicosRoute
   '/atendimento/novo': typeof AtendimentoNovoRoute
-  '/clientes/$clientId': typeof ClientesClientIdRoute
   '/clientes/novo': typeof ClientesNovoRoute
+  '/ficha/$token': typeof FichaTokenRoute
   '/servicos/novo': typeof ServicosNovoRoute
   '/clientes': typeof ClientesIndexRoute
+  '/anamnese/visualizar/$id': typeof AnamneseVisualizarIdRoute
+  '/clientes/$clientId/editar': typeof ClientesClientIdEditarRoute
+  '/servicos/$serviceId/editar': typeof ServicosServiceIdEditarRoute
+  '/clientes/$clientId': typeof ClientesClientIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/anamnese': typeof AnamneseRoute
+  '/anamnese': typeof AnamneseRouteWithChildren
+  '/cadastro': typeof CadastroRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/login': typeof LoginRoute
   '/mais': typeof MaisRoute
+  '/notificacoes': typeof NotificacoesRoute
+  '/perfil': typeof PerfilRoute
   '/servicos': typeof ServicosRoute
   '/atendimento/novo': typeof AtendimentoNovoRoute
-  '/clientes/$clientId': typeof ClientesClientIdRoute
+  '/clientes/$clientId': typeof ClientesClientIdRouteWithChildren
   '/clientes/novo': typeof ClientesNovoRoute
+  '/ficha/$token': typeof FichaTokenRoute
   '/servicos_/novo': typeof ServicosNovoRoute
   '/clientes/': typeof ClientesIndexRoute
+  '/anamnese/visualizar/$id': typeof AnamneseVisualizarIdRoute
+  '/clientes/$clientId/editar': typeof ClientesClientIdEditarRoute
+  '/servicos_/$serviceId/editar': typeof ServicosServiceIdEditarRoute
+  '/clientes/$clientId/': typeof ClientesClientIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -114,50 +203,86 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/anamnese'
+    | '/cadastro'
+    | '/configuracoes'
+    | '/login'
     | '/mais'
+    | '/notificacoes'
+    | '/perfil'
     | '/servicos'
     | '/atendimento/novo'
     | '/clientes/$clientId'
     | '/clientes/novo'
+    | '/ficha/$token'
     | '/servicos/novo'
     | '/clientes/'
+    | '/anamnese/visualizar/$id'
+    | '/clientes/$clientId/editar'
+    | '/servicos/$serviceId/editar'
+    | '/clientes/$clientId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agenda'
     | '/anamnese'
+    | '/cadastro'
+    | '/configuracoes'
+    | '/login'
     | '/mais'
+    | '/notificacoes'
+    | '/perfil'
     | '/servicos'
     | '/atendimento/novo'
-    | '/clientes/$clientId'
     | '/clientes/novo'
+    | '/ficha/$token'
     | '/servicos/novo'
     | '/clientes'
+    | '/anamnese/visualizar/$id'
+    | '/clientes/$clientId/editar'
+    | '/servicos/$serviceId/editar'
+    | '/clientes/$clientId'
   id:
     | '__root__'
     | '/'
     | '/agenda'
     | '/anamnese'
+    | '/cadastro'
+    | '/configuracoes'
+    | '/login'
     | '/mais'
+    | '/notificacoes'
+    | '/perfil'
     | '/servicos'
     | '/atendimento/novo'
     | '/clientes/$clientId'
     | '/clientes/novo'
+    | '/ficha/$token'
     | '/servicos_/novo'
     | '/clientes/'
+    | '/anamnese/visualizar/$id'
+    | '/clientes/$clientId/editar'
+    | '/servicos_/$serviceId/editar'
+    | '/clientes/$clientId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
-  AnamneseRoute: typeof AnamneseRoute
+  AnamneseRoute: typeof AnamneseRouteWithChildren
+  CadastroRoute: typeof CadastroRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
+  LoginRoute: typeof LoginRoute
   MaisRoute: typeof MaisRoute
+  NotificacoesRoute: typeof NotificacoesRoute
+  PerfilRoute: typeof PerfilRoute
   ServicosRoute: typeof ServicosRoute
   AtendimentoNovoRoute: typeof AtendimentoNovoRoute
-  ClientesClientIdRoute: typeof ClientesClientIdRoute
+  ClientesClientIdRoute: typeof ClientesClientIdRouteWithChildren
   ClientesNovoRoute: typeof ClientesNovoRoute
+  FichaTokenRoute: typeof FichaTokenRoute
   ServicosNovoRoute: typeof ServicosNovoRoute
   ClientesIndexRoute: typeof ClientesIndexRoute
+  ServicosServiceIdEditarRoute: typeof ServicosServiceIdEditarRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -183,11 +308,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnamneseRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cadastro': {
+      id: '/cadastro'
+      path: '/cadastro'
+      fullPath: '/cadastro'
+      preLoaderRoute: typeof CadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mais': {
       id: '/mais'
       path: '/mais'
       fullPath: '/mais'
       preLoaderRoute: typeof MaisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notificacoes': {
+      id: '/notificacoes'
+      path: '/notificacoes'
+      fullPath: '/notificacoes'
+      preLoaderRoute: typeof NotificacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/perfil': {
+      id: '/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof PerfilRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/servicos': {
@@ -225,6 +385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientesNovoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ficha/$token': {
+      id: '/ficha/$token'
+      path: '/ficha/$token'
+      fullPath: '/ficha/$token'
+      preLoaderRoute: typeof FichaTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/servicos_/novo': {
       id: '/servicos_/novo'
       path: '/servicos/novo'
@@ -232,20 +399,80 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicosNovoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/anamnese/visualizar/$id': {
+      id: '/anamnese/visualizar/$id'
+      path: '/visualizar/$id'
+      fullPath: '/anamnese/visualizar/$id'
+      preLoaderRoute: typeof AnamneseVisualizarIdRouteImport
+      parentRoute: typeof AnamneseRoute
+    }
+    '/clientes/$clientId/': {
+      id: '/clientes/$clientId/'
+      path: '/'
+      fullPath: '/clientes/$clientId/'
+      preLoaderRoute: typeof ClientesClientIdIndexRouteImport
+      parentRoute: typeof ClientesClientIdRoute
+    }
+    '/clientes/$clientId/editar': {
+      id: '/clientes/$clientId/editar'
+      path: '/editar'
+      fullPath: '/clientes/$clientId/editar'
+      preLoaderRoute: typeof ClientesClientIdEditarRouteImport
+      parentRoute: typeof ClientesClientIdRoute
+    }
+    '/servicos_/$serviceId/editar': {
+      id: '/servicos_/$serviceId/editar'
+      path: '/servicos/$serviceId/editar'
+      fullPath: '/servicos/$serviceId/editar'
+      preLoaderRoute: typeof ServicosServiceIdEditarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface AnamneseRouteChildren {
+  AnamneseVisualizarIdRoute: typeof AnamneseVisualizarIdRoute
+}
+
+const AnamneseRouteChildren: AnamneseRouteChildren = {
+  AnamneseVisualizarIdRoute: AnamneseVisualizarIdRoute,
+}
+
+const AnamneseRouteWithChildren = AnamneseRoute._addFileChildren(
+  AnamneseRouteChildren,
+)
+
+interface ClientesClientIdRouteChildren {
+  ClientesClientIdEditarRoute: typeof ClientesClientIdEditarRoute
+  ClientesClientIdIndexRoute: typeof ClientesClientIdIndexRoute
+}
+
+const ClientesClientIdRouteChildren: ClientesClientIdRouteChildren = {
+  ClientesClientIdEditarRoute: ClientesClientIdEditarRoute,
+  ClientesClientIdIndexRoute: ClientesClientIdIndexRoute,
+}
+
+const ClientesClientIdRouteWithChildren =
+  ClientesClientIdRoute._addFileChildren(ClientesClientIdRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
-  AnamneseRoute: AnamneseRoute,
+  AnamneseRoute: AnamneseRouteWithChildren,
+  CadastroRoute: CadastroRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
+  LoginRoute: LoginRoute,
   MaisRoute: MaisRoute,
+  NotificacoesRoute: NotificacoesRoute,
+  PerfilRoute: PerfilRoute,
   ServicosRoute: ServicosRoute,
   AtendimentoNovoRoute: AtendimentoNovoRoute,
-  ClientesClientIdRoute: ClientesClientIdRoute,
+  ClientesClientIdRoute: ClientesClientIdRouteWithChildren,
   ClientesNovoRoute: ClientesNovoRoute,
+  FichaTokenRoute: FichaTokenRoute,
   ServicosNovoRoute: ServicosNovoRoute,
   ClientesIndexRoute: ClientesIndexRoute,
+  ServicosServiceIdEditarRoute: ServicosServiceIdEditarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

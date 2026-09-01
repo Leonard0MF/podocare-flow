@@ -1,10 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  useNavigate,
+} from "@tanstack/react-router";
 import { Clock, Save } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { PageHeader, Screen } from "@/components/Screen";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/servicos_/novo")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    from:
+      search["from"] === "atendimento"
+        ? ("atendimento" as const)
+        : undefined,
+  }),
+
   head: () => ({
     meta: [
       { title: "Novo serviço — Podocare" },
@@ -12,32 +23,47 @@ export const Route = createFileRoute("/servicos_/novo")({
         name: "description",
         content: "Cadastre um novo serviço de podologia.",
       },
-      {
-        property: "og:title",
-        content: "Novo serviço — Podocare",
-      },
-      {
-        property: "og:description",
-        content: "Cadastre os procedimentos oferecidos pela clínica.",
-      },
     ],
   }),
+
   component: NovoServico,
 });
 
 function NovoServico() {
+  const navigate = useNavigate();
+
+  const search = Route.useSearch();
+
+  const isFromAtendimento =
+    search.from === "atendimento";
+
+  const returnTo = isFromAtendimento
+    ? "/atendimento/novo"
+    : "/servicos";
+
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("");
   const [description, setDescription] = useState("");
-  const [error, setError] = useState("");
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
+
+    if (saving) {
+      return;
+    }
+
+    setError("");
 
     const trimmedName = name.trim();
     const numericPrice = Number(price);
     const numericDuration = Number(duration);
+    const trimmedDescription = description.trim();
 
     if (!trimmedName) {
       setError("Informe o nome do serviço.");
@@ -45,11 +71,17 @@ function NovoServico() {
     }
 
     if (trimmedName.length < 2) {
-      setError("O nome do serviço deve ter pelo menos 2 caracteres.");
+      setError(
+        "O nome do serviço deve ter pelo menos 2 caracteres.",
+      );
       return;
     }
 
-    if (!price || Number.isNaN(numericPrice) || numericPrice <= 0) {
+    if (
+      !price ||
+      Number.isNaN(numericPrice) ||
+      numericPrice <= 0
+    ) {
       setError("Informe um valor válido.");
       return;
     }
@@ -60,29 +92,55 @@ function NovoServico() {
       numericDuration < 5 ||
       numericDuration > 480
     ) {
-      setError("A duração deve estar entre 5 e 480 minutos.");
+      setError(
+        "A duração deve estar entre 5 e 480 minutos.",
+      );
       return;
     }
 
-    const service = {
-      name: trimmedName,
-      price: numericPrice,
-      duration: numericDuration,
-      description: description.trim(),
-    };
+    setSaving(true);
 
-    console.log("Novo serviço:", service);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    /*
-     * Futuramente:
-     * salvar o serviço no banco de dados.
-     */
+    if (!user) {
+      setSaving(false);
+      setError(
+        "Sua sessão expirou. Faça login novamente.",
+      );
+      return;
+    }
 
-    setError("");
-    setName("");
-    setPrice("");
-    setDuration("");
-    setDescription("");
+    const { error: insertError } = await supabase
+      .from("services")
+      .insert({
+        user_id: user.id,
+        name: trimmedName,
+        price: numericPrice,
+        duration: numericDuration,
+        description: trimmedDescription || null,
+      });
+
+    if (insertError) {
+      console.error(
+        "Erro ao cadastrar serviço:",
+        insertError,
+      );
+
+      setSaving(false);
+
+      setError(
+        insertError.message ||
+          "Não foi possível cadastrar o serviço. Tente novamente.",
+      );
+
+      return;
+    }
+
+    await navigate({
+      to: returnTo,
+    });
   }
 
   return (
@@ -90,10 +148,13 @@ function NovoServico() {
       <PageHeader
         title="Novo serviço"
         subtitle="Cadastre um procedimento e seu valor."
-        back="/servicos"
+        back={returnTo}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-5"
+      >
         <Section title="Dados do serviço">
           <Field label="Nome do serviço *">
             <input
@@ -105,6 +166,7 @@ function NovoServico() {
               }}
               placeholder="Ex.: Podologia preventiva"
               maxLength={100}
+              disabled={saving}
               className={`${inputClass} h-13 py-3.5`}
             />
 
@@ -129,6 +191,7 @@ function NovoServico() {
                   setError("");
                 }}
                 placeholder="0,00"
+                disabled={saving}
                 className={`${inputClass} h-13 py-3.5 pl-11`}
               />
             </div>
@@ -149,6 +212,7 @@ function NovoServico() {
                   setError("");
                 }}
                 placeholder="60"
+                disabled={saving}
                 className={`${inputClass} h-13 py-3.5 pl-12 pr-20`}
               />
 
@@ -174,6 +238,7 @@ function NovoServico() {
               placeholder="Descrição ou observações sobre o serviço..."
               maxLength={500}
               rows={4}
+              disabled={saving}
               className={`${inputClass} resize-none py-3.5`}
             />
 
@@ -184,7 +249,10 @@ function NovoServico() {
         </Section>
 
         {error && (
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+          <div
+            role="alert"
+            className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
+          >
             {error}
           </div>
         )}
@@ -192,10 +260,14 @@ function NovoServico() {
         <div className="pt-2">
           <button
             type="submit"
-            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-[15px] font-semibold text-primary-foreground shadow-float transition-opacity hover:opacity-90 active:scale-[0.99]"
+            disabled={saving}
+            className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-[15px] font-semibold text-primary-foreground shadow-float transition-opacity hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save className="size-5" />
-            Cadastrar serviço
+
+            {saving
+              ? "Cadastrando..."
+              : "Cadastrar serviço"}
           </button>
         </div>
       </form>
@@ -203,7 +275,13 @@ function NovoServico() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
   return (
     <section className="card-surface space-y-4 px-4 py-5">
       <h2 className="text-sm font-bold uppercase tracking-wider text-primary">
@@ -215,7 +293,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <label className="block space-y-2">
       <span className="text-sm font-medium text-muted-foreground">
@@ -228,4 +312,4 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-border bg-background px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:border-primary";
+  "w-full rounded-xl border border-border bg-background px-4 text-[15px] outline-none placeholder:text-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-60";

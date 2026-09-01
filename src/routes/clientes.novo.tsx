@@ -1,9 +1,21 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+} from "@tanstack/react-router";
 import { ArrowLeft, Save } from "lucide-react";
 import { useState } from "react";
 import { Screen } from "@/components/Screen";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/clientes/novo")({
+  validateSearch: (search: Record<string, unknown>) => ({
+  from:
+    search["from"] === "atendimento"
+      ? "atendimento"
+      : undefined,
+}),
+
   head: () => ({
     meta: [
       { title: "Novo cliente — Podocare" },
@@ -13,6 +25,7 @@ export const Route = createFileRoute("/clientes/novo")({
       },
     ],
   }),
+
   component: NovoCliente,
 });
 
@@ -28,13 +41,16 @@ function formatCPF(value: string) {
   }
 
   if (numbers.length <= 9) {
-    return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    return `${numbers.slice(0, 3)}.${numbers.slice(
+      3,
+      6,
+    )}.${numbers.slice(6)}`;
   }
 
-  return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(
+  return `${numbers.slice(0, 3)}.${numbers.slice(
+    3,
     6,
-    9,
-  )}-${numbers.slice(9, 11)}`;
+  )}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
 }
 
 function formatPhone(value: string) {
@@ -49,19 +65,33 @@ function formatPhone(value: string) {
   }
 
   if (numbers.length <= 10) {
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(
+      2,
+      6,
+    )}-${numbers.slice(6)}`;
   }
 
-  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(
+  return `(${numbers.slice(0, 2)}) ${numbers.slice(
+    2,
     7,
-    11,
-  )}`;
+  )}-${numbers.slice(7, 11)}`;
 }
 
 function NovoCliente() {
   const navigate = useNavigate();
 
-  const today = new Date().toISOString().split("T")[0];
+  const search = Route.useSearch();
+
+  const isFromAtendimento =
+    search.from === "atendimento";
+
+  const returnTo = isFromAtendimento
+    ? "/atendimento/novo"
+    : "/clientes";
+
+  const today = new Date()
+    .toISOString()
+    .split("T")[0];
 
   const [form, setForm] = useState({
     name: "",
@@ -73,6 +103,7 @@ function NovoCliente() {
   });
 
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   function handleChange(
     field: keyof typeof form,
@@ -96,52 +127,113 @@ function NovoCliente() {
     handleChange("phone", formatPhone(value));
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
+    setError("");
+
     if (!form.name.trim()) {
-      setError("Informe o nome completo do cliente.");
+      setError(
+        "Informe o nome completo do cliente.",
+      );
       return;
     }
 
-    const cpfNumbers = form.cpf.replace(/\D/g, "");
+    const cpfNumbers = form.cpf.replace(
+      /\D/g,
+      "",
+    );
 
-    if (cpfNumbers.length > 0 && cpfNumbers.length !== 11) {
-      setError("O CPF deve conter 11 números.");
+    if (
+      cpfNumbers.length > 0 &&
+      cpfNumbers.length !== 11
+    ) {
+      setError(
+        "O CPF deve conter 11 números.",
+      );
       return;
     }
 
     if (form.birth) {
-      const birthDate = new Date(`${form.birth}T00:00:00`);
+      const birthDate = new Date(
+        `${form.birth}T00:00:00`,
+      );
+
       const currentDate = new Date();
 
       currentDate.setHours(0, 0, 0, 0);
 
       if (birthDate > currentDate) {
-        setError("A data de nascimento não pode ser futura.");
+        setError(
+          "A data de nascimento não pode ser futura.",
+        );
         return;
       }
     }
 
-    const phoneNumbers = form.phone.replace(/\D/g, "");
+    const phoneNumbers = form.phone.replace(
+      /\D/g,
+      "",
+    );
 
-    if (phoneNumbers.length !== 10 && phoneNumbers.length !== 11) {
+    if (
+      phoneNumbers.length !== 10 &&
+      phoneNumbers.length !== 11
+    ) {
       setError("Informe um telefone válido.");
       return;
     }
 
-    setError("");
+    setLoading(true);
 
-    // Temporário.
-    // Posteriormente este ponto será substituído pelo cadastro no banco.
-    console.log("Novo cliente:", {
-      ...form,
-      cpf: cpfNumbers,
-      phone: phoneNumbers,
-    });
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setLoading(false);
+      setError(
+        "Sua sessão expirou. Faça login novamente.",
+      );
+      return;
+    }
+
+    const { error: insertError } =
+      await supabase
+        .from("clients")
+        .insert({
+          user_id: user.id,
+          name: form.name.trim(),
+          cpf: cpfNumbers || null,
+          birth: form.birth || null,
+          phone: phoneNumbers,
+          email: form.email.trim() || null,
+          notes: form.notes.trim() || null,
+        });
+
+    if (insertError) {
+      console.error(
+        "Erro ao cadastrar cliente:",
+        insertError,
+      );
+
+      setLoading(false);
+
+      setError(
+        insertError.message ||
+          "Não foi possível cadastrar o cliente. Tente novamente.",
+      );
+
+      return;
+    }
+
+    setLoading(false);
 
     navigate({
-      to: "/clientes",
+      to: returnTo,
     });
   }
 
@@ -149,7 +241,7 @@ function NovoCliente() {
     <Screen>
       <header className="mb-7 flex items-center gap-3">
         <Link
-          to="/clientes"
+          to={returnTo}
           className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground transition-colors hover:text-foreground"
           aria-label="Voltar"
         >
@@ -167,7 +259,10 @@ function NovoCliente() {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-5"
+      >
         <section className="card-surface space-y-5 p-5">
           <div>
             <label
@@ -182,10 +277,14 @@ function NovoCliente() {
               type="text"
               value={form.name}
               onChange={(event) =>
-                handleChange("name", event.target.value)
+                handleChange(
+                  "name",
+                  event.target.value,
+                )
               }
               placeholder="Ex.: Ana Souza"
-              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+              disabled={loading}
+              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary disabled:opacity-60"
             />
           </div>
 
@@ -205,10 +304,13 @@ function NovoCliente() {
               maxLength={14}
               value={form.cpf}
               onChange={(event) =>
-                handleCPFChange(event.target.value)
+                handleCPFChange(
+                  event.target.value,
+                )
               }
               placeholder="000.000.000-00"
-              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+              disabled={loading}
+              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary disabled:opacity-60"
             />
           </div>
 
@@ -226,9 +328,13 @@ function NovoCliente() {
               value={form.birth}
               max={today}
               onChange={(event) =>
-                handleChange("birth", event.target.value)
+                handleChange(
+                  "birth",
+                  event.target.value,
+                )
               }
-              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors focus:border-primary"
+              disabled={loading}
+              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors focus:border-primary disabled:opacity-60"
             />
 
             <p className="mt-2 text-xs text-muted-foreground">
@@ -258,10 +364,13 @@ function NovoCliente() {
               maxLength={15}
               value={form.phone}
               onChange={(event) =>
-                handlePhoneChange(event.target.value)
+                handlePhoneChange(
+                  event.target.value,
+                )
               }
               placeholder="(51) 99999-9999"
-              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+              disabled={loading}
+              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary disabled:opacity-60"
             />
           </div>
 
@@ -278,10 +387,14 @@ function NovoCliente() {
               type="email"
               value={form.email}
               onChange={(event) =>
-                handleChange("email", event.target.value)
+                handleChange(
+                  "email",
+                  event.target.value,
+                )
               }
               placeholder="cliente@email.com"
-              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+              disabled={loading}
+              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary disabled:opacity-60"
             />
           </div>
         </section>
@@ -298,26 +411,37 @@ function NovoCliente() {
             id="notes"
             value={form.notes}
             onChange={(event) =>
-              handleChange("notes", event.target.value)
+              handleChange(
+                "notes",
+                event.target.value,
+              )
             }
             placeholder="Informações adicionais sobre o cliente..."
             rows={5}
-            className="w-full resize-none rounded-2xl border border-border bg-background px-4 py-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+            disabled={loading}
+            className="w-full resize-none rounded-2xl border border-border bg-background px-4 py-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary disabled:opacity-60"
           />
         </section>
 
         {error && (
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+          <div
+            role="alert"
+            className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
+          >
             {error}
           </div>
         )}
 
         <button
           type="submit"
-          className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-[15px] font-semibold text-primary-foreground shadow-float transition-opacity hover:opacity-90"
+          disabled={loading}
+          className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-[15px] font-semibold text-primary-foreground shadow-float transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Save className="size-5" />
-          Salvar cliente
+
+          {loading
+            ? "Salvando..."
+            : "Salvar cliente"}
         </button>
       </form>
     </Screen>
