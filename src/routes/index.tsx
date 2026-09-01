@@ -1,4 +1,8 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+} from "@tanstack/react-router";
 import {
   CalendarDays,
   Clock,
@@ -11,19 +15,6 @@ import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/")({
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      throw redirect({
-        to: "/login",
-        replace: true,
-      });
-    }
-  },
-
   head: () => ({
     meta: [
       {
@@ -152,6 +143,10 @@ function getStatusClass(status: string) {
 }
 
 function Home() {
+  const navigate = useNavigate();
+
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [name, setName] = useState("usuário");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -165,52 +160,100 @@ function Home() {
   const greeting = getGreeting();
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadHome() {
+      setAuthLoading(true);
       setLoadingAppointments(true);
       setError("");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       /*
-       * A proteção principal da rota já acontece no beforeLoad.
+       * A verificação é feita no cliente.
        *
-       * Este fallback evita que a aplicação tente consultar
-       * os dados caso, por algum motivo, a sessão desapareça
-       * enquanto a página estiver aberta.
+       * Isso é importante porque o Supabase mantém a sessão
+       * no navegador e o SSR do Vercel não consegue acessar
+       * essa sessão dessa forma.
        */
-      if (!user) {
-        setLoadingAppointments(false);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (!mounted) {
         return;
       }
 
-      const userName = user.user_metadata?.["name"];
+      if (sessionError) {
+        console.error(
+          "Erro ao verificar sessão:",
+          sessionError,
+        );
 
-      if (typeof userName === "string" && userName.trim()) {
-        setName(userName.trim().split(" ")[0] ?? "usuário");
+        await navigate({
+          to: "/login",
+          replace: true,
+        });
+
+        return;
       }
 
-      const { data, error: appointmentsError } = await supabase
-        .from("appointments")
-        .select(`
-          id,
-          appointment_date,
-          appointment_time,
-          status,
-          client:clients (
-            name
-          ),
-          service:services (
-            name,
-            duration
-          )
-        `)
-        .eq("user_id", user.id)
-        .eq("appointment_date", today)
-        .order("appointment_time", {
-          ascending: true,
+      /*
+       * Usuário não autenticado:
+       * manda imediatamente para o login.
+       */
+      if (!session) {
+        await navigate({
+          to: "/login",
+          replace: true,
         });
+
+        return;
+      }
+
+      const user = session.user;
+
+      /*
+       * Recupera o nome salvo nos metadados do usuário.
+       */
+      const userName = user.user_metadata?.["name"];
+
+      if (
+        typeof userName === "string" &&
+        userName.trim()
+      ) {
+        setName(
+          userName.trim().split(" ")[0] ?? "usuário",
+        );
+      }
+
+      /*
+       * Busca os atendimentos do usuário autenticado.
+       */
+      const { data, error: appointmentsError } =
+        await supabase
+          .from("appointments")
+          .select(`
+            id,
+            appointment_date,
+            appointment_time,
+            status,
+            client:clients (
+              name
+            ),
+            service:services (
+              name,
+              duration
+            )
+          `)
+          .eq("user_id", user.id)
+          .eq("appointment_date", today)
+          .order("appointment_time", {
+            ascending: true,
+          });
+
+      if (!mounted) {
+        return;
+      }
 
       if (appointmentsError) {
         console.error(
@@ -218,34 +261,65 @@ function Home() {
           appointmentsError,
         );
 
-        setError("Não foi possível carregar os atendimentos.");
+        setError(
+          "Não foi possível carregar os atendimentos.",
+        );
+
         setLoadingAppointments(false);
+        setAuthLoading(false);
         return;
       }
 
-      const formattedAppointments: Appointment[] = (data ?? []).map(
-        (appointment) => ({
-          id: appointment.id,
-          appointment_date: appointment.appointment_date,
-          appointment_time: appointment.appointment_time,
-          status: appointment.status ?? "agendado",
+      const formattedAppointments: Appointment[] = (
+        data ?? []
+      ).map((appointment) => ({
+        id: appointment.id,
+        appointment_date:
+          appointment.appointment_date,
+        appointment_time:
+          appointment.appointment_time,
+        status:
+          appointment.status ?? "agendado",
 
-          client: Array.isArray(appointment.client)
-            ? appointment.client[0] ?? null
-            : appointment.client ?? null,
+        client: Array.isArray(appointment.client)
+          ? appointment.client[0] ?? null
+          : appointment.client ?? null,
 
-          service: Array.isArray(appointment.service)
-            ? appointment.service[0] ?? null
-            : appointment.service ?? null,
-        }),
-      );
+        service: Array.isArray(appointment.service)
+          ? appointment.service[0] ?? null
+          : appointment.service ?? null,
+      }));
 
       setAppointments(formattedAppointments);
       setLoadingAppointments(false);
+      setAuthLoading(false);
     }
 
     loadHome();
-  }, [today]);
+
+    return () => {
+      mounted = false;
+    };
+  }, [today, navigate]);
+
+  /*
+   * Enquanto estamos verificando a sessão,
+   * não renderizamos a Home.
+   *
+   * Isso evita mostrar "Bom dia, usuário" por um instante
+   * antes do redirecionamento para /login.
+   */
+  if (authLoading) {
+    return (
+      <Screen>
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <p className="text-sm text-muted-foreground">
+            Verificando sua sessão...
+          </p>
+        </div>
+      </Screen>
+    );
+  }
 
   const activeAppointments = useMemo(() => {
     return appointments.filter(
@@ -255,17 +329,25 @@ function Home() {
     );
   }, [appointments]);
 
-  const currentMinutes = getCurrentTimeInMinutes();
+  const currentMinutes =
+    getCurrentTimeInMinutes();
 
   const nextAppointment = useMemo(() => {
     return activeAppointments.find(
       (appointment) =>
-        timeToMinutes(normalizeTime(appointment.appointment_time)) >=
-        currentMinutes,
+        timeToMinutes(
+          normalizeTime(
+            appointment.appointment_time,
+          ),
+        ) >= currentMinutes,
     );
-  }, [activeAppointments, currentMinutes]);
+  }, [
+    activeAppointments,
+    currentMinutes,
+  ]);
 
-  const hasAppointments = appointments.length > 0;
+  const hasAppointments =
+    appointments.length > 0;
 
   return (
     <Screen>
@@ -321,7 +403,9 @@ function Home() {
                   </p>
 
                   <h2 className="mt-1 text-xl font-bold">
-                    {normalizeTime(nextAppointment.appointment_time)}
+                    {normalizeTime(
+                      nextAppointment.appointment_time,
+                    )}
                   </h2>
                 </div>
 
@@ -339,11 +423,13 @@ function Home() {
 
                 <div className="min-w-0">
                   <p className="truncate font-bold">
-                    {nextAppointment.client?.name ?? "Cliente"}
+                    {nextAppointment.client?.name ??
+                      "Cliente"}
                   </p>
 
                   <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                    {nextAppointment.service?.name ?? "Serviço"}
+                    {nextAppointment.service?.name ??
+                      "Serviço"}
                   </p>
                 </div>
               </div>
@@ -352,7 +438,11 @@ function Home() {
                 {nextAppointment.service && (
                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold">
                     <Clock className="size-3.5 text-primary" />
-                    {nextAppointment.service.duration} min
+                    {
+                      nextAppointment.service
+                        .duration
+                    }{" "}
+                    min
                   </span>
                 )}
 
@@ -361,7 +451,9 @@ function Home() {
                     nextAppointment.status,
                   )}`}
                 >
-                  {getStatusLabel(nextAppointment.status)}
+                  {getStatusLabel(
+                    nextAppointment.status,
+                  )}
                 </span>
               </div>
             </div>
@@ -377,7 +469,8 @@ function Home() {
             </h2>
 
             <p className="mt-2 text-sm text-muted-foreground">
-              Você não possui mais atendimentos pela frente hoje.
+              Você não possui mais atendimentos
+              pela frente hoje.
             </p>
           </section>
         )}
@@ -407,54 +500,65 @@ function Home() {
               <CalendarDays className="mx-auto mb-3 size-6 text-muted-foreground" />
 
               <p className="text-sm text-muted-foreground">
-                Você ainda não possui atendimentos para hoje.
+                Você ainda não possui atendimentos
+                para hoje.
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {appointments.slice(0, 5).map((appointment) => (
-                <div
-                  key={appointment.id}
-                  className="card-surface flex items-center gap-3 p-4"
-                >
-                  <div className="w-12 shrink-0 text-center">
-                    <p className="text-sm font-bold text-primary">
-                      {normalizeTime(appointment.appointment_time)}
-                    </p>
-                  </div>
-
-                  <div className="h-10 w-px bg-border" />
-
-                  <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary">
-                    <UserRound className="size-4 text-primary" />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">
-                      {appointment.client?.name ?? "Cliente"}
-                    </p>
-
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {appointment.service?.name ?? "Serviço"}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold ${getStatusClass(
-                      appointment.status,
-                    )}`}
+              {appointments
+                .slice(0, 5)
+                .map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="card-surface flex items-center gap-3 p-4"
                   >
-                    {getStatusLabel(appointment.status)}
-                  </span>
-                </div>
-              ))}
+                    <div className="w-12 shrink-0 text-center">
+                      <p className="text-sm font-bold text-primary">
+                        {normalizeTime(
+                          appointment.appointment_time,
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="h-10 w-px bg-border" />
+
+                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary">
+                      <UserRound className="size-4 text-primary" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold">
+                        {appointment.client?.name ??
+                          "Cliente"}
+                      </p>
+
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {appointment.service?.name ??
+                          "Serviço"}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold ${getStatusClass(
+                        appointment.status,
+                      )}`}
+                    >
+                      {getStatusLabel(
+                        appointment.status,
+                      )}
+                    </span>
+                  </div>
+                ))}
 
               {appointments.length > 5 && (
                 <Link
                   to="/agenda"
                   className="flex min-h-11 items-center justify-center rounded-2xl bg-secondary text-sm font-semibold text-primary"
                 >
-                  Ver todos os {appointments.length} atendimentos
+                  Ver todos os{" "}
+                  {appointments.length}{" "}
+                  atendimentos
                 </Link>
               )}
             </div>
