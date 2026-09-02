@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 
 export function Screen({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto min-h-screen w-full max-w-lg px-5 pb-28 pt-8 md:max-w-2xl lg:max-w-3xl">
+    <main className="mx-auto min-h-screen w-full min-w-0 max-w-lg px-4 pb-28 pt-6 sm:px-5 sm:pt-8">
       {children}
-    </div>
+    </main>
   );
 }
 
@@ -22,7 +22,7 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+    <header className="mb-6 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
       <div className="flex min-w-0 items-center gap-2">
         {back ? (
           <Link
@@ -33,14 +33,25 @@ export function PageHeader({
             <ChevronLeft className="size-5" />
           </Link>
         ) : null}
+
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold tracking-tight">{title}</h1>
+          <h1 className="truncate text-2xl font-bold tracking-tight">
+            {title}
+          </h1>
+
           {subtitle ? (
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">{subtitle}</p>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
+              {subtitle}
+            </p>
           ) : null}
         </div>
       </div>
-      {action}
+
+      {action ? (
+        <div className="shrink-0">
+          {action}
+        </div>
+      ) : null}
     </header>
   );
 }

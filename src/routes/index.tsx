@@ -16,14 +16,6 @@ import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/")({
-  /*
-   * Roda NO SERVIDOR antes de renderizar qualquer coisa.
-   *
-   * `context.user` vem do beforeLoad da rota raiz
-   * (__root.tsx), que já leu a sessão do cookie. Se não tem
-   * usuário, redireciona pro /login ANTES de mandar HTML pro
-   * navegador — não existe mais o flash da Home.
-   */
   beforeLoad: ({ context }) => {
     if (!context.user) {
       throw redirect({ to: "/login" });
@@ -161,32 +153,13 @@ function Home() {
   const navigate = useNavigate();
 
   const [name, setName] = useState("usuário");
-
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-
   const [loadingAppointments, setLoadingAppointments] = useState(true);
-
   const [error, setError] = useState("");
 
   const today = useMemo(() => getToday(), []);
-
   const greeting = getGreeting();
 
-  /*
-   * ============================================================
-   * CARREGAMENTO DA HOME
-   * ============================================================
-   *
-   * Não precisamos mais checar sessão aqui: o `beforeLoad`
-   * desta rota já garante (no servidor) que só chegamos até
-   * aqui se existir um usuário logado.
-   *
-   * Ainda assim, mantemos uma checagem de segurança: se por
-   * algum motivo a sessão não estiver mais válida no momento
-   * em que o navegador busca os dados (ex: token expirou entre
-   * o SSR e a hidratação), redirecionamos pro login em vez de
-   * mostrar erro na tela.
-   */
   useEffect(() => {
     async function loadHome() {
       setLoadingAppointments(true);
@@ -197,23 +170,7 @@ function Home() {
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError) {
-        console.error(
-          "Erro ao obter usuário:",
-          userError,
-        );
-
-        setLoadingAppointments(false);
-
-        await navigate({
-          to: "/login",
-          replace: true,
-        });
-
-        return;
-      }
-
-      if (!user) {
+      if (userError || !user) {
         setLoadingAppointments(false);
 
         await navigate({
@@ -305,32 +262,29 @@ function Home() {
       appointment.status !== "faltou",
   );
 
-  const currentMinutes =
-    getCurrentTimeInMinutes();
+  const currentMinutes = getCurrentTimeInMinutes();
 
-  const nextAppointment =
-    activeAppointments.find(
-      (appointment) =>
-        timeToMinutes(
-          normalizeTime(
-            appointment.appointment_time,
-          ),
-        ) >= currentMinutes,
-    );
+  const nextAppointment = activeAppointments.find(
+    (appointment) =>
+      timeToMinutes(
+        normalizeTime(
+          appointment.appointment_time,
+        ),
+      ) >= currentMinutes,
+  );
 
-  const hasAppointments =
-    appointments.length > 0;
+  const hasAppointments = appointments.length > 0;
 
   return (
     <Screen>
-      <div className="pb-24">
+      <div className="mx-auto w-full max-w-lg min-w-0 px-4 pb-28">
         <header className="mb-7">
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">
-            <Sun className="size-3.5" />
-            Podocare
+          <div className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">
+            <Sun className="size-3.5 shrink-0" />
+            <span>Podocare</span>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="break-words text-2xl font-bold tracking-tight">
             {greeting}, {name}
           </h1>
 
@@ -340,19 +294,19 @@ function Home() {
         </header>
 
         {loadingAppointments ? (
-          <section className="card-surface mb-8 p-6 text-center">
+          <section className="card-surface mb-8 p-5 text-center sm:p-6">
             <p className="text-sm text-muted-foreground">
               Carregando seus atendimentos...
             </p>
           </section>
         ) : error ? (
-          <section className="card-surface mb-8 p-6 text-center">
+          <section className="card-surface mb-8 p-5 text-center sm:p-6">
             <p className="text-sm font-medium text-destructive">
               {error}
             </p>
           </section>
         ) : !hasAppointments ? (
-          <section className="card-surface mb-8 p-6 text-center">
+          <section className="card-surface mb-8 p-5 text-center sm:p-6">
             <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-primary-soft">
               <Sun className="size-6 text-primary" />
             </div>
@@ -369,7 +323,7 @@ function Home() {
           <section className="card-surface mb-8 overflow-hidden">
             <div className="border-b border-border p-5">
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-bold uppercase tracking-wider text-primary">
                     Próximo atendimento
                   </p>
@@ -381,19 +335,19 @@ function Home() {
                   </h2>
                 </div>
 
-                <div className="grid size-12 place-items-center rounded-2xl bg-primary-soft">
+                <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary-soft">
                   <Clock className="size-5 text-primary" />
                 </div>
               </div>
             </div>
 
             <div className="p-5">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-secondary">
                   <UserRound className="size-5 text-primary" />
                 </div>
 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-bold">
                     {nextAppointment.client?.name ??
                       "Cliente"}
@@ -406,20 +360,17 @@ function Home() {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex min-w-0 flex-wrap gap-2">
                 {nextAppointment.service && (
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold">
-                    <Clock className="size-3.5 text-primary" />
-                    {
-                      nextAppointment.service
-                        .duration
-                    }{" "}
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold">
+                    <Clock className="size-3.5 shrink-0 text-primary" />
+                    {nextAppointment.service.duration}{" "}
                     min
                   </span>
                 )}
 
                 <span
-                  className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${getStatusClass(
+                  className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold ${getStatusClass(
                     nextAppointment.status,
                   )}`}
                 >
@@ -431,7 +382,7 @@ function Home() {
             </div>
           </section>
         ) : (
-          <section className="card-surface mb-8 p-6 text-center">
+          <section className="card-surface mb-8 p-5 text-center sm:p-6">
             <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-primary-soft">
               <Sun className="size-6 text-primary" />
             </div>
@@ -447,28 +398,28 @@ function Home() {
           </section>
         )}
 
-        <section className="mb-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+        <section className="mb-8 min-w-0">
+          <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+            <h2 className="min-w-0 text-sm font-bold uppercase tracking-wider text-muted-foreground">
               Atendimentos de hoje
             </h2>
 
             <Link
               to="/agenda"
-              className="text-xs font-semibold text-primary"
+              className="shrink-0 text-xs font-semibold text-primary"
             >
               Ver agenda
             </Link>
           </div>
 
           {loadingAppointments ? (
-            <div className="card-surface p-6 text-center">
+            <div className="card-surface p-5 text-center sm:p-6">
               <p className="text-sm text-muted-foreground">
                 Carregando...
               </p>
             </div>
           ) : appointments.length === 0 ? (
-            <div className="card-surface p-6 text-center">
+            <div className="card-surface p-5 text-center sm:p-6">
               <CalendarDays className="mx-auto mb-3 size-6 text-muted-foreground" />
 
               <p className="text-sm text-muted-foreground">
@@ -477,15 +428,15 @@ function Home() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               {appointments
                 .slice(0, 5)
                 .map((appointment) => (
                   <div
                     key={appointment.id}
-                    className="card-surface flex items-center gap-3 p-4"
+                    className="card-surface flex min-w-0 items-center gap-2.5 p-3 sm:gap-3 sm:p-4"
                   >
-                    <div className="w-12 shrink-0 text-center">
+                    <div className="w-11 shrink-0 text-center sm:w-12">
                       <p className="text-sm font-bold text-primary">
                         {normalizeTime(
                           appointment.appointment_time,
@@ -493,9 +444,9 @@ function Home() {
                       </p>
                     </div>
 
-                    <div className="h-10 w-px bg-border" />
+                    <div className="h-10 w-px shrink-0 bg-border" />
 
-                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary">
+                    <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary sm:size-10">
                       <UserRound className="size-4 text-primary" />
                     </div>
 
@@ -512,7 +463,7 @@ function Home() {
                     </div>
 
                     <span
-                      className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold ${getStatusClass(
+                      className={`max-w-[92px] shrink-0 truncate rounded-lg px-2 py-1 text-[10px] font-bold sm:max-w-none ${getStatusClass(
                         appointment.status,
                       )}`}
                     >
@@ -528,8 +479,7 @@ function Home() {
                   to="/agenda"
                   className="flex min-h-11 items-center justify-center rounded-2xl bg-secondary text-sm font-semibold text-primary"
                 >
-                  Ver todos os{" "}
-                  {appointments.length}{" "}
+                  Ver todos os {appointments.length}{" "}
                   atendimentos
                 </Link>
               )}
@@ -543,8 +493,8 @@ function Home() {
         aria-label="Novo atendimento"
         className="fixed bottom-24 left-1/2 z-[90] inline-flex min-h-14 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-[15px] font-semibold text-primary-foreground shadow-float transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
       >
-        <Plus className="size-5" />
-        Novo atendimento
+        <Plus className="size-5 shrink-0" />
+        <span>Novo atendimento</span>
       </Link>
     </Screen>
   );
