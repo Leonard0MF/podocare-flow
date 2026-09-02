@@ -3,8 +3,10 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
+  Lock,
   MoreVertical,
   Plus,
+  Unlock,
   UserRound,
   XCircle,
 } from "lucide-react";
@@ -60,6 +62,13 @@ type Appointment = {
   } | null;
 };
 
+type AgendaBlock = {
+  id: string;
+  appointment_date: string;
+  appointment_time: string;
+  reason: string | null;
+};
+
 const views = ["Dia", "Semana", "Mês"] as const;
 
 const slots = [
@@ -92,12 +101,7 @@ const slots = [
   "20:00",
 ];
 
-// Espaço reservado abaixo da agenda para o botão flutuante / navegação
-// inferior do app. Ajuste este valor se a barra inferior do seu layout
-// (Screen.tsx) tiver outra altura.
 const BOTTOM_SAFE_AREA_PX = 104;
-
-// Altura mínima da lista, mesmo em telas muito pequenas.
 const MIN_AGENDA_HEIGHT_PX = 240;
 
 function getToday() {
@@ -311,6 +315,9 @@ function Agenda() {
   const [appointments, setAppointments] =
     useState<Appointment[]>([]);
 
+  const [agendaBlocks, setAgendaBlocks] =
+    useState<AgendaBlock[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -326,31 +333,15 @@ function Agenda() {
   const [currentMinutes, setCurrentMinutes] =
     useState(getCurrentTimeInMinutes());
 
-  /*
-   * Controla a visibilidade do botão +
-   * conforme o usuário navega pela agenda.
-   */
   const [showFloatingButton, setShowFloatingButton] =
     useState(true);
 
-  /*
-   * Altura calculada dinamicamente para a lista de horários,
-   * de forma que ela ocupe exatamente o espaço disponível na
-   * tela (sem cortar o final e sem precisar rolar a página
-   * inteira — só a agenda rola).
-   */
   const [agendaHeight, setAgendaHeight] =
     useState<number | null>(null);
 
   const agendaScrollRef =
     useRef<HTMLDivElement | null>(null);
 
-  /*
-   * Marca se o usuário já interagiu manualmente com o scroll
-   * da agenda (touch/wheel). Usado para não confundir o
-   * auto-scroll inicial (que pula pro horário atual) com o
-   * usuário de fato tendo chegado ao fim da lista.
-   */
   const userScrolledRef = useRef(false);
 
   const today = getToday();
@@ -365,9 +356,6 @@ function Agenda() {
     [selectedDate],
   );
 
-  /*
-   * Atualiza o horário atual a cada 30 segundos.
-   */
   useEffect(() => {
     const interval = window.setInterval(() => {
       setCurrentMinutes(
@@ -522,6 +510,96 @@ function Agenda() {
   ]);
 
   /*
+   * Carrega os horários fechados.
+   */
+  useEffect(() => {
+    async function loadAgendaBlocks() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        return;
+      }
+
+      let query = supabase
+        .from("agenda_bloqueios")
+        .select(
+          "id, appointment_date, appointment_time, reason",
+        )
+        .eq("user_id", user.id);
+
+      if (activeView === "Dia") {
+        query = query.eq(
+          "appointment_date",
+          selectedDate,
+        );
+      }
+
+      if (activeView === "Semana") {
+        query = query
+          .gte(
+            "appointment_date",
+            weekDates[0],
+          )
+          .lte(
+            "appointment_date",
+            weekDates[6],
+          );
+      }
+
+      if (activeView === "Mês") {
+        query = query
+          .gte(
+            "appointment_date",
+            monthDates[0],
+          )
+          .lte(
+            "appointment_date",
+            monthDates[monthDates.length - 1],
+          );
+      }
+
+      const {
+        data,
+        error: blocksError,
+      } = await query.order(
+        "appointment_time",
+        {
+          ascending: true,
+        },
+      );
+
+      if (blocksError) {
+        console.error(
+          "Erro ao carregar horários fechados:",
+          blocksError,
+        );
+
+        return;
+      }
+
+      setAgendaBlocks(
+        (data ?? []).map((block) => ({
+          id: block.id,
+          appointment_date:
+            block.appointment_date,
+          appointment_time:
+            block.appointment_time,
+          reason: block.reason ?? null,
+        })),
+      );
+    }
+
+    loadAgendaBlocks();
+  }, [
+    selectedDate,
+    activeView,
+    weekDates,
+    monthDates,
+  ]);
+
+  /*
    * AUTO CONCLUSÃO
    */
   useEffect(() => {
@@ -632,15 +710,7 @@ function Agenda() {
   ]);
 
   /*
-   * Calcula dinamicamente a altura da lista de horários.
-   *
-   * Em vez de "chutar" um valor fixo de calc(100dvh - Xpx),
-   * medimos a posição real do topo do container (que já reflete
-   * o header, as abas Dia/Semana/Mês etc.) e subtraímos apenas
-   * o espaço reservado para o botão flutuante / navegação
-   * inferior. Isso garante que a lista sempre caiba certinho na
-   * tela, sem cortar o final e sem precisar rolar a página
-   * inteira.
+   * Altura da agenda.
    */
   useEffect(() => {
     if (activeView !== "Dia") {
@@ -654,14 +724,17 @@ function Agenda() {
         return;
       }
 
-      const top = container.getBoundingClientRect().top;
+      const top =
+        container.getBoundingClientRect().top;
 
       const viewportHeight =
         window.visualViewport?.height ??
         window.innerHeight;
 
       const available =
-        viewportHeight - top - BOTTOM_SAFE_AREA_PX;
+        viewportHeight -
+        top -
+        BOTTOM_SAFE_AREA_PX;
 
       setAgendaHeight(
         Math.max(
@@ -671,10 +744,10 @@ function Agenda() {
       );
     }
 
-    // Roda depois do primeiro paint, já com o loading resolvido.
-    const raf = requestAnimationFrame(
-      updateAgendaHeight,
-    );
+    const raf =
+      requestAnimationFrame(
+        updateAgendaHeight,
+      );
 
     window.addEventListener(
       "resize",
@@ -712,12 +785,7 @@ function Agenda() {
   }, [activeView, loading]);
 
   /*
-   * Scroll inicial:
-   *
-   * Quando a agenda de HOJE abre, ela vai
-   * automaticamente para perto do horário atual.
-   *
-   * Depois disso, não força mais o scroll.
+   * Scroll inicial.
    */
   useEffect(() => {
     if (
@@ -775,13 +843,7 @@ function Agenda() {
   ]);
 
   /*
-   * Controla o botão flutuante.
-   *
-   * Importante: o auto-scroll inicial (acima) NÃO conta como
-   * "usuário chegou ao fim da agenda" — ele só pula pro horário
-   * atual, e se isso calhar de ser perto do fim do dia, o botão
-   * não deve sumir sozinho. O botão só esconde depois que o
-   * usuário de fato arrastar a lista (touch/wheel) até o final.
+   * Botão flutuante.
    */
   useEffect(() => {
     const container =
@@ -871,13 +933,9 @@ function Agenda() {
     selectedDate,
     loading,
     appointments,
+    agendaBlocks,
   ]);
 
-  /*
-   * Sempre que mudar de tela/data,
-   * o botão volta a aparecer e o estado de
-   * "usuário já rolou" é resetado.
-   */
   useEffect(() => {
     userScrolledRef.current = false;
     setShowFloatingButton(true);
@@ -953,6 +1011,27 @@ function Agenda() {
     );
   }
 
+  function getAgendaBlockForSlot(
+    slot: string,
+  ) {
+    return agendaBlocks.find(
+      (block) => {
+        if (
+          block.appointment_date !==
+          selectedDate
+        ) {
+          return false;
+        }
+
+        return (
+          normalizeTime(
+            block.appointment_time,
+          ) === slot
+        );
+      },
+    );
+  }
+
   function getAppointmentsForDate(
     date: string,
   ) {
@@ -963,8 +1042,167 @@ function Agenda() {
     );
   }
 
+  async function handleToggleAgendaBlock(
+    slot: string,
+  ) {
+    const existingBlock =
+      getAgendaBlockForSlot(slot);
+
+    const existingAppointment =
+      getAppointmentForSlot(slot);
+
+    const occupiedBy =
+      getOccupiedAppointment(slot);
+
+    /*
+     * Nunca permite fechar horário que já possui
+     * atendimento.
+     */
+    if (
+      !existingBlock &&
+      (existingAppointment ||
+        occupiedBy)
+    ) {
+      window.alert(
+        "Este horário faz parte de um atendimento e não pode ser fechado.",
+      );
+
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("Usuário não autenticado.");
+      return;
+    }
+
+    /*
+     * REABRIR HORÁRIO
+     */
+    if (existingBlock) {
+      const confirmed =
+        window.confirm(
+          `Deseja reabrir o horário das ${slot}?`,
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      const { error: deleteError } =
+        await supabase
+          .from("agenda_bloqueios")
+          .delete()
+          .eq(
+            "id",
+            existingBlock.id,
+          )
+          .eq(
+            "user_id",
+            user.id,
+          );
+
+      if (deleteError) {
+        console.error(
+          "Erro ao reabrir horário:",
+          deleteError,
+        );
+
+        setError(
+          "Não foi possível reabrir o horário.",
+        );
+
+        return;
+      }
+
+      setAgendaBlocks((current) =>
+        current.filter(
+          (block) =>
+            block.id !==
+            existingBlock.id,
+        ),
+      );
+
+      return;
+    }
+
+    /*
+     * FECHAR HORÁRIO
+     */
+    const confirmed =
+      window.confirm(
+        `Deseja fechar o horário das ${slot} em ${formatDate(selectedDate)}?`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const { data, error: insertError } =
+      await supabase
+        .from("agenda_bloqueios")
+        .insert({
+          user_id: user.id,
+          appointment_date:
+            selectedDate,
+          appointment_time:
+            `${slot}:00`,
+          reason: "Horário fechado pela profissional",
+        })
+        .select(
+          "id, appointment_date, appointment_time, reason",
+        )
+        .single();
+
+    if (insertError) {
+      console.error(
+        "Erro ao fechar horário:",
+        insertError,
+      );
+
+      setError(
+        "Não foi possível fechar o horário.",
+      );
+
+      return;
+    }
+
+    setAgendaBlocks((current) => [
+      ...current,
+      {
+        id: data.id,
+        appointment_date:
+          data.appointment_date,
+        appointment_time:
+          data.appointment_time,
+        reason: data.reason ?? null,
+      },
+    ]);
+  }
+
   async function handleCancelAppointment() {
     if (!selectedAppointment) {
+      return;
+    }
+
+    /*
+     * Segurança extra:
+     * atendimento concluído nunca pode ser cancelado.
+     */
+    if (
+      selectedAppointment.status ===
+      "concluido"
+    ) {
+      return;
+    }
+
+    if (
+      selectedAppointment.status ===
+      "cancelado"
+    ) {
       return;
     }
 
@@ -1024,6 +1262,15 @@ function Agenda() {
 
   async function handleCompleteAppointment() {
     if (!selectedAppointment) {
+      return;
+    }
+
+    if (
+      selectedAppointment.status ===
+        "concluido" ||
+      selectedAppointment.status ===
+        "cancelado"
+    ) {
       return;
     }
 
@@ -1123,10 +1370,6 @@ function Agenda() {
           />
         </div>
 
-        {/*
-         * Navegação rápida entre dias, sem precisar abrir
-         * o seletor de data. Só faz sentido na visão "Dia".
-         */}
         {activeView === "Dia" && (
           <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
             <button
@@ -1664,7 +1907,6 @@ function Agenda() {
             </section>
           ) : (
             <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
-              {/* Cabeçalho da agenda */}
               <div className="flex items-center justify-between border-b border-border p-4">
                 <div>
                   <h2 className="text-lg font-bold">
@@ -1684,15 +1926,6 @@ function Agenda() {
                 )}
               </div>
 
-              {/*
-               * SOMENTE ESTA ÁREA POSSUI SCROLL.
-               *
-               * A altura é calculada dinamicamente em JS
-               * (ver useEffect "updateAgendaHeight") para
-               * ocupar exatamente o espaço restante da tela,
-               * sem cortar o final e sem exigir scroll da
-               * página inteira — apenas desta lista.
-               */}
               <div
                 ref={agendaScrollRef}
                 style={{
@@ -1708,11 +1941,6 @@ function Agenda() {
                   [-webkit-overflow-scrolling:touch]
                 "
               >
-                {/*
-                 * Padding inferior extra garante que o último
-                 * horário, 20:00, possa ficar completamente
-                 * visível mesmo em telas pequenas.
-                 */}
                 <div className="pb-8">
                   {slots.map(
                     (slot, slotIndex) => {
@@ -1723,6 +1951,11 @@ function Agenda() {
 
                       const occupiedBy =
                         getOccupiedAppointment(
+                          slot,
+                        );
+
+                      const agendaBlock =
+                        getAgendaBlockForSlot(
                           slot,
                         );
 
@@ -1796,6 +2029,58 @@ function Agenda() {
                       const isCompleted =
                         appointment?.status ===
                         "concluido";
+
+                      /*
+                       * HORÁRIO FECHADO
+                       */
+                      if (
+                        agendaBlock &&
+                        !appointment
+                      ) {
+                        return (
+                          <div
+                            key={slot}
+                            data-slot-index={
+                              slotIndex
+                            }
+                            className={`grid min-h-13 grid-cols-[4rem_minmax(0,1fr)] gap-3 border-b border-border/60 bg-muted/30 md:min-h-14`}
+                          >
+                            <div className="flex items-start justify-end pt-3 pr-1 md:pt-4">
+                              <span className="text-xs font-bold text-muted-foreground/60">
+                                {slot}
+                              </span>
+                            </div>
+
+                            <div className="py-1.5 pr-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleAgendaBlock(
+                                    slot,
+                                  )
+                                }
+                                className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-border bg-secondary px-3 text-left transition-colors hover:border-primary/30"
+                              >
+                                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+                                  <Lock className="size-4" />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-bold text-muted-foreground">
+                                    Horário fechado
+                                  </p>
+
+                                  <p className="text-[11px] text-muted-foreground/70">
+                                    Toque para reabrir
+                                  </p>
+                                </div>
+
+                                <Unlock className="size-4 shrink-0 text-muted-foreground" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
 
                       return (
                         <div
@@ -1958,7 +2243,7 @@ function Agenda() {
                                 </div>
                               </button>
                             ) : (
-                              <div className="flex min-h-11 items-center md:min-h-12">
+                              <div className="flex min-h-11 items-center gap-2 md:min-h-12">
                                 <div
                                   className={`h-px flex-1 ${
                                     isCurrentSlot
@@ -1966,6 +2251,20 @@ function Agenda() {
                                       : "bg-border/60"
                                   }`}
                                 />
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleAgendaBlock(
+                                      slot,
+                                    )
+                                  }
+                                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                                  title="Fechar horário"
+                                >
+                                  <Lock className="size-3.5" />
+                                  Fechar
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2093,18 +2392,20 @@ function Agenda() {
                 )}
 
               {selectedAppointment.status !==
-                "cancelado" && (
-                <button
-                  type="button"
-                  onClick={
-                    handleCancelAppointment
-                  }
-                  className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-destructive/10 px-4 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/15"
-                >
-                  <XCircle className="size-5" />
-                  Cancelar atendimento
-                </button>
-              )}
+                "cancelado" &&
+                selectedAppointment.status !==
+                  "concluido" && (
+                  <button
+                    type="button"
+                    onClick={
+                      handleCancelAppointment
+                    }
+                    className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-destructive/10 px-4 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/15"
+                  >
+                    <XCircle className="size-5" />
+                    Cancelar atendimento
+                  </button>
+                )}
 
               <button
                 type="button"
@@ -2122,14 +2423,6 @@ function Agenda() {
         </div>
       )}
 
-      {/*
-       * BOTÃO FLUTUANTE
-       *
-       * A animação usa opacity + scale.
-       * Ele só some quando o USUÁRIO chega de fato ao final
-       * da agenda (ver useEffect de "userScrolledRef" acima) —
-       * nunca por causa do auto-scroll inicial pro horário atual.
-       */}
       <Link
         to="/atendimento/novo"
         aria-label="Novo atendimento"

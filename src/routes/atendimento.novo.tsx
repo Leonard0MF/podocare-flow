@@ -44,6 +44,14 @@ type Appointment = {
   service_id: string;
 };
 
+type AgendaBlock = {
+  id: string;
+  block_date: string;
+  start_time: string;
+  end_time: string;
+  reason: string | null;
+};
+
 const paymentMethods = [
   "Não informado",
   "Pix",
@@ -53,6 +61,16 @@ const paymentMethods = [
   "Outro",
 ];
 
+/**
+ * Horários disponíveis para início.
+ *
+ * 20:00 continua sendo um horário possível de início.
+ *
+ * Por isso o expediente termina às 20:30.
+ *
+ * Se futuramente a podóloga decidir que o último início
+ * deve ser 19:30, basta voltar WORK_END para 20:00.
+ */
 const timeSlots = [
   "07:00",
   "07:30",
@@ -84,7 +102,7 @@ const timeSlots = [
 ];
 
 const WORK_START = "07:00";
-const WORK_END = "20:00";
+const WORK_END = "20:30";
 
 function getToday() {
   const date = new Date();
@@ -130,14 +148,6 @@ function minutesToTime(minutes: number) {
   ).padStart(2, "0")}`;
 }
 
-/**
- * Retorna o horário final de um atendimento.
- *
- * Exemplo:
- * início 09:00
- * duração 60
- * final 10:00
- */
 function getAppointmentEndTime(
   startTime: string,
   duration: number,
@@ -147,17 +157,6 @@ function getAppointmentEndTime(
   );
 }
 
-/**
- * Verifica se dois intervalos de horário possuem conflito.
- *
- * Intervalos:
- *
- * A = 09:00 → 10:00
- * B = 10:00 → 11:00
- *
- * Não existe conflito porque um termina exatamente
- * quando o outro começa.
- */
 function hasTimeOverlap(
   firstStart: string,
   firstDuration: number,
@@ -178,17 +177,6 @@ function hasTimeOverlap(
   );
 }
 
-/**
- * Retorna os slots de 30 minutos ocupados por um atendimento.
- *
- * Exemplo:
- *
- * 09:00 + 90 min
- *
- * → 09:00
- * → 09:30
- * → 10:00
- */
 function getOccupiedSlots(
   startTime: string,
   duration: number,
@@ -208,14 +196,6 @@ function getOccupiedSlots(
   );
 }
 
-/**
- * Verifica se o atendimento cabe dentro do horário
- * de funcionamento.
- *
- * O atendimento pode começar às 20:00 apenas se
- * tiver duração zero, portanto, na prática, o último
- * horário depende da duração.
- */
 function canFitInsideWorkingHours(
   startTime: string,
   duration: number,
@@ -226,24 +206,6 @@ function canFitInsideWorkingHours(
   return (
     startMinutes >= timeToMinutes(WORK_START) &&
     endMinutes <= timeToMinutes(WORK_END)
-  );
-}
-
-/**
- * Retorna o último horário possível para iniciar
- * determinado serviço.
- *
- * Exemplo:
- *
- * funcionamento termina 20:00
- * serviço dura 60 min
- *
- * último início possível = 19:00
- */
-function getLastPossibleStart(duration: number) {
-  return (
-    timeToMinutes(WORK_END) -
-    Math.max(duration, 1)
   );
 }
 
@@ -277,22 +239,6 @@ function showAppointmentNotification(
 function NovoAtendimento() {
   const navigate = useNavigate();
 
-  /**
-   * IMPORTANTE:
-   *
-   * Hoje é usado SOMENTE para impedir datas passadas.
-   *
-   * Não existe maxDate.
-   *
-   * Portanto:
-   *
-   * 31/08/2026 → permitido
-   * 01/09/2026 → permitido
-   * 30/09/2026 → permitido
-   * 01/10/2026 → permitido
-   *
-   * qualquer data futura → permitido
-   */
   const today = useMemo(() => getToday(), []);
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -300,6 +246,10 @@ function NovoAtendimento() {
 
   const [appointments, setAppointments] = useState<
     Appointment[]
+  >([]);
+
+  const [agendaBlocks, setAgendaBlocks] = useState<
+    AgendaBlock[]
   >([]);
 
   const [loadingData, setLoadingData] = useState(true);
@@ -327,9 +277,6 @@ function NovoAtendimento() {
     (service) => service.id === serviceId,
   );
 
-  /**
-   * Carrega clientes e serviços.
-   */
   useEffect(() => {
     async function loadData() {
       setLoadingData(true);
@@ -398,6 +345,7 @@ function NovoAtendimento() {
       }
 
       setClients(clientsData ?? []);
+
       setServices(
         (servicesData ?? []).map((service) => ({
           ...service,
@@ -413,18 +361,16 @@ function NovoAtendimento() {
   }, []);
 
   /**
-   * Busca os atendimentos do dia selecionado.
+   * Carrega:
    *
-   * Toda vez que o usuário troca a data:
-   *
-   * 01/09 → busca atendimentos de 01/09
-   * 02/09 → busca atendimentos de 02/09
-   * etc.
+   * 1. atendimentos do dia
+   * 2. bloqueios manuais do dia
    */
   useEffect(() => {
-    async function loadAppointments() {
+    async function loadSchedule() {
       if (!date) {
         setAppointments([]);
+        setAgendaBlocks([]);
         return;
       }
 
@@ -438,23 +384,37 @@ function NovoAtendimento() {
 
       if (userError || !user) {
         setAppointments([]);
+        setAgendaBlocks([]);
         setLoadingAppointments(false);
         return;
       }
 
-      const {
-        data,
-        error: appointmentsError,
-      } = await supabase
-        .from("appointments")
-        .select(
-          "id, appointment_time, status, service_id",
-        )
-        .eq("user_id", user.id)
-        .eq("appointment_date", date)
-        .order("appointment_time", {
-          ascending: true,
-        });
+      const [
+        { data: appointmentsData, error: appointmentsError },
+        { data: blocksData, error: blocksError },
+      ] = await Promise.all([
+        supabase
+          .from("appointments")
+          .select(
+            "id, appointment_time, status, service_id",
+          )
+          .eq("user_id", user.id)
+          .eq("appointment_date", date)
+          .order("appointment_time", {
+            ascending: true,
+          }),
+
+        supabase
+          .from("agenda_blocks")
+          .select(
+            "id, block_date, start_time, end_time, reason",
+          )
+          .eq("user_id", user.id)
+          .eq("block_date", date)
+          .order("start_time", {
+            ascending: true,
+          }),
+      ]);
 
       if (appointmentsError) {
         console.error(
@@ -472,39 +432,48 @@ function NovoAtendimento() {
         return;
       }
 
+      if (blocksError) {
+        console.error(
+          "Erro ao carregar horários fechados:",
+          blocksError,
+        );
+
+        setAgendaBlocks([]);
+
+        setError(
+          "Não foi possível verificar os horários fechados.",
+        );
+
+        setLoadingAppointments(false);
+        return;
+      }
+
       setAppointments(
-        (data ?? []) as Appointment[],
+        (appointmentsData ?? []) as Appointment[],
+      );
+
+      setAgendaBlocks(
+        (blocksData ?? []) as AgendaBlock[],
       );
 
       setLoadingAppointments(false);
     }
 
-    loadAppointments();
+    loadSchedule();
   }, [date]);
 
-  /**
-   * Quando a data muda, o horário escolhido anteriormente
-   * precisa ser apagado.
-   */
   function handleDateChange(value: string) {
     setDate(value);
     setTime("");
     setError("");
   }
 
-  /**
-   * Quando o serviço muda, o horário escolhido anteriormente
-   * também precisa ser apagado porque a duração mudou.
-   */
   function handleServiceChange(value: string) {
     setServiceId(value);
     setTime("");
     setError("");
   }
 
-  /**
-   * Retorna a duração de um atendimento existente.
-   */
   function getExistingAppointmentDuration(
     appointment: Appointment,
   ) {
@@ -518,8 +487,33 @@ function NovoAtendimento() {
   }
 
   /**
-   * Verifica se um horário está ocupado por algum
-   * atendimento existente.
+   * Verifica se o horário bate com um bloqueio manual.
+   */
+  function isTimeBlockedByAgenda(
+    slot: string,
+    duration: number,
+  ) {
+    const slotStart = timeToMinutes(slot);
+    const slotEnd = slotStart + duration;
+
+    return agendaBlocks.some((block) => {
+      const blockStart = timeToMinutes(
+        block.start_time.slice(0, 5),
+      );
+
+      const blockEnd = timeToMinutes(
+        block.end_time.slice(0, 5),
+      );
+
+      return (
+        slotStart < blockEnd &&
+        blockStart < slotEnd
+      );
+    });
+  }
+
+  /**
+   * Verifica conflito com atendimento existente.
    */
   function isTimeOccupied(slot: string) {
     if (!selectedService) {
@@ -531,9 +525,6 @@ function NovoAtendimento() {
     );
 
     return appointments.some((appointment) => {
-      /**
-       * Atendimento cancelado libera o horário.
-       */
       if (
         appointment.status?.toLowerCase() ===
         "cancelado"
@@ -556,7 +547,26 @@ function NovoAtendimento() {
   }
 
   /**
-   * Verifica se um horário pode ser selecionado.
+   * Verifica se o horário já está fechado.
+   */
+  function isTimeBlocked(slot: string) {
+    if (!selectedService) {
+      return false;
+    }
+
+    return isTimeBlockedByAgenda(
+      slot,
+      Number(selectedService.duration),
+    );
+  }
+
+  /**
+   * Horário disponível somente se:
+   *
+   * - o serviço existir
+   * - couber no expediente
+   * - não houver atendimento
+   * - não houver bloqueio manual
    */
   function isTimeAvailable(slot: string) {
     if (!selectedService) {
@@ -567,10 +577,6 @@ function NovoAtendimento() {
       selectedService.duration,
     );
 
-    /**
-     * Primeiro verifica se o serviço cabe no horário
-     * de funcionamento.
-     */
     if (
       !canFitInsideWorkingHours(
         slot,
@@ -580,20 +586,35 @@ function NovoAtendimento() {
       return false;
     }
 
-    /**
-     * Depois verifica conflitos com os atendimentos
-     * existentes.
-     */
     if (isTimeOccupied(slot)) {
       return false;
+    }
+
+    if (isTimeBlocked(slot)) {
+      return false;
+    }
+
+    /**
+     * Se for hoje, também impede horários
+     * que já passaram.
+     */
+    if (date === today) {
+      const now = new Date();
+
+      const currentMinutes =
+        now.getHours() * 60 +
+        now.getMinutes();
+
+      if (
+        timeToMinutes(slot) <= currentMinutes
+      ) {
+        return false;
+      }
     }
 
     return true;
   }
 
-  /**
-   * Slots ocupados pelo novo atendimento.
-   */
   const selectedTimeSlots =
     selectedService && time
       ? getOccupiedSlots(
@@ -602,9 +623,6 @@ function NovoAtendimento() {
         )
       : [];
 
-  /**
-   * Horários disponíveis visualmente.
-   */
   const availableTimeSlots = useMemo(() => {
     if (!selectedService) {
       return [];
@@ -616,15 +634,12 @@ function NovoAtendimento() {
   }, [
     selectedService,
     appointments,
+    agendaBlocks,
     services,
+    date,
+    today,
   ]);
 
-  /**
-   * Lista dos horários ocupados pelos atendimentos
-   * existentes.
-   *
-   * Usada apenas para visualização.
-   */
   const occupiedTimeSlots = useMemo(() => {
     const occupied = new Set<string>();
 
@@ -654,9 +669,38 @@ function NovoAtendimento() {
     return occupied;
   }, [appointments, services]);
 
-  /**
-   * Escolhe o horário.
-   */
+  const blockedTimeSlots = useMemo(() => {
+    const blocked = new Set<string>();
+
+    for (const slot of timeSlots) {
+      const slotStart = timeToMinutes(slot);
+      const slotEnd = slotStart + 30;
+
+      const isBlocked = agendaBlocks.some(
+        (block) => {
+          const blockStart = timeToMinutes(
+            block.start_time.slice(0, 5),
+          );
+
+          const blockEnd = timeToMinutes(
+            block.end_time.slice(0, 5),
+          );
+
+          return (
+            slotStart < blockEnd &&
+            blockStart < slotEnd
+          );
+        },
+      );
+
+      if (isBlocked) {
+        blocked.add(slot);
+      }
+    }
+
+    return blocked;
+  }, [agendaBlocks]);
+
   function handleTimeChange(slot: string) {
     if (!selectedService) {
       setError(
@@ -681,9 +725,28 @@ function NovoAtendimento() {
       return;
     }
 
+    if (isTimeBlocked(slot)) {
+      setError(
+        "Esse horário está fechado na agenda.",
+      );
+      return;
+    }
+
     if (isTimeOccupied(slot)) {
       setError(
         "Esse horário possui conflito com outro atendimento.",
+      );
+      return;
+    }
+
+    if (
+      date === today &&
+      timeToMinutes(slot) <=
+        new Date().getHours() * 60 +
+          new Date().getMinutes()
+    ) {
+      setError(
+        "Esse horário já passou.",
       );
       return;
     }
@@ -714,13 +777,6 @@ function NovoAtendimento() {
       return;
     }
 
-    /**
-     * A única restrição de data no frontend:
-     *
-     * não permitir passado.
-     *
-     * NÃO existe limite máximo.
-     */
     if (date < today) {
       setError(
         `A data deve ser ${formatDate(
@@ -760,9 +816,6 @@ function NovoAtendimento() {
       return;
     }
 
-    /**
-     * Confere se o atendimento cabe no expediente.
-     */
     if (
       !canFitInsideWorkingHours(
         time,
@@ -775,15 +828,30 @@ function NovoAtendimento() {
       return;
     }
 
-    /**
-     * SEGUNDA VERIFICAÇÃO DE CONFLITO.
-     *
-     * Mesmo que o botão estivesse disponível,
-     * verificamos novamente antes de salvar.
-     *
-     * Isso evita conflito caso outro atendimento
-     * tenha sido criado enquanto essa tela estava aberta.
-     */
+    if (isTimeBlockedByAgenda(time, duration)) {
+      setError(
+        "Esse horário está fechado na agenda.",
+      );
+      return;
+    }
+
+    if (date === today) {
+      const now = new Date();
+
+      const currentMinutes =
+        now.getHours() * 60 +
+        now.getMinutes();
+
+      if (
+        timeToMinutes(time) <= currentMinutes
+      ) {
+        setError(
+          "Esse horário já passou.",
+        );
+        return;
+      }
+    }
+
     const hasConflict = appointments.some(
       (appointment) => {
         if (
@@ -832,10 +900,7 @@ function NovoAtendimento() {
     }
 
     /**
-     * Reconsulta o banco imediatamente antes de inserir.
-     *
-     * Isso protege contra dois dispositivos/telas
-     * tentando marcar o mesmo horário.
+     * Reconsulta atendimentos.
      */
     const {
       data: latestAppointments,
@@ -863,6 +928,70 @@ function NovoAtendimento() {
       return;
     }
 
+    /**
+     * Reconsulta bloqueios imediatamente antes
+     * de salvar.
+     */
+    const {
+      data: latestBlocks,
+      error: latestBlocksError,
+    } = await supabase
+      .from("agenda_blocks")
+      .select(
+        "id, block_date, start_time, end_time, reason",
+      )
+      .eq("user_id", user.id)
+      .eq("block_date", date);
+
+    if (latestBlocksError) {
+      console.error(
+        "Erro ao verificar bloqueios:",
+        latestBlocksError,
+      );
+
+      setLoadingSubmit(false);
+
+      setError(
+        "Não foi possível verificar os horários fechados. Tente novamente.",
+      );
+
+      return;
+    }
+
+    const latestBlockConflict =
+      (latestBlocks ?? []).some((block) => {
+        const blockStart = block.start_time.slice(
+          0,
+          5,
+        );
+
+        const blockEnd = block.end_time.slice(
+          0,
+          5,
+        );
+
+        return (
+          timeToMinutes(time) <
+            timeToMinutes(blockEnd) &&
+          timeToMinutes(blockStart) <
+            timeToMinutes(time) + duration
+        );
+      });
+
+    if (latestBlockConflict) {
+      setLoadingSubmit(false);
+
+      setAgendaBlocks(
+        (latestBlocks ?? []) as AgendaBlock[],
+      );
+
+      setError(
+        "Esse horário acabou de ser fechado na agenda. Escolha outro horário.",
+      );
+
+      return;
+    }
+
     const latestConflict =
       (latestAppointments ?? []).some(
         (appointment) => {
@@ -880,11 +1009,6 @@ function NovoAtendimento() {
                 appointment.service_id,
             );
 
-          /**
-           * Caso o serviço antigo não seja encontrado,
-           * usamos 30 minutos como fallback para não
-           * deixar o horário totalmente sem proteção.
-           */
           const existingDuration =
             existingService
               ? Number(existingService.duration)
@@ -902,24 +1026,18 @@ function NovoAtendimento() {
     if (latestConflict) {
       setLoadingSubmit(false);
 
-      setError(
-        "Esse horário acabou de ficar indisponível. Escolha outro horário.",
-      );
-
-      /**
-       * Atualiza a tela também.
-       */
       setAppointments(
         (latestAppointments ??
           []) as Appointment[],
       );
 
+      setError(
+        "Esse horário acabou de ficar indisponível. Escolha outro horário.",
+      );
+
       return;
     }
 
-    /**
-     * Cria o atendimento.
-     */
     const { error: insertError } =
       await supabase
         .from("appointments")
@@ -942,22 +1060,20 @@ function NovoAtendimento() {
 
       setLoadingSubmit(false);
 
-      /**
-       * Tratamento específico para possível
-       * conflito/constraint vindo do banco.
-       */
       const databaseMessage =
         insertError.message?.toLowerCase() ?? "";
 
       if (
-        databaseMessage.includes("appointment_date") ||
+        databaseMessage.includes(
+          "appointment_date",
+        ) ||
         databaseMessage.includes("data") ||
         databaseMessage.includes("date")
       ) {
         setError(
           `O banco recusou a data ${formatDate(
             date,
-          )}. A tela permite datas futuras, então verifique a constraint/trigger da tabela appointments no Supabase.`,
+          )}. Verifique a constraint/trigger da tabela appointments no Supabase.`,
         );
       } else {
         setError(
@@ -968,10 +1084,6 @@ function NovoAtendimento() {
       return;
     }
 
-    /**
-     * Notificação imediata somente depois do
-     * atendimento ter sido salvo.
-     */
     showAppointmentNotification(
       selectedClient.name,
       selectedService.name,
@@ -1182,17 +1294,7 @@ function NovoAtendimento() {
                 <input
                   id="date"
                   type="date"
-
-                  /**
-                   * SOMENTE mínimo.
-                   *
-                   * Não existe max.
-                   *
-                   * Portanto o navegador permite qualquer
-                   * data futura, inclusive meses e anos à frente.
-                   */
                   min={today}
-
                   value={date}
                   onChange={(event) =>
                     handleDateChange(
@@ -1250,6 +1352,9 @@ function NovoAtendimento() {
                       const isOccupied =
                         occupiedTimeSlots.has(slot);
 
+                      const isBlocked =
+                        blockedTimeSlots.has(slot);
+
                       const isAvailable =
                         isTimeAvailable(slot);
 
@@ -1291,6 +1396,14 @@ function NovoAtendimento() {
                               </span>
                             )}
 
+                          {isBlocked &&
+                            !isOccupied &&
+                            !isSelected && (
+                              <span className="mt-0.5 block text-[10px] font-medium">
+                                fechado
+                              </span>
+                            )}
+
                           {isStart && (
                             <span className="mt-0.5 block text-[10px] font-medium opacity-80">
                               início
@@ -1301,13 +1414,36 @@ function NovoAtendimento() {
                     })}
                   </div>
 
-                  {availableTimeSlots.length ===
-                    0 && (
+                  {availableTimeSlots.length === 0 && (
                     <div className="mt-4 rounded-2xl border border-dashed border-border bg-secondary/40 px-4 py-4 text-center">
                       <p className="text-sm font-medium text-muted-foreground">
                         Não há horários disponíveis para
                         este serviço neste dia.
                       </p>
+                    </div>
+                  )}
+
+                  {agendaBlocks.length > 0 && (
+                    <div className="mt-4 rounded-2xl bg-secondary px-4 py-3">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        Horários fechados
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {agendaBlocks.map((block) => (
+                          <span
+                            key={block.id}
+                            className="rounded-lg bg-background px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                          >
+                            {block.start_time.slice(0, 5)}
+                            {" → "}
+                            {block.end_time.slice(0, 5)}
+                            {block.reason
+                              ? ` — ${block.reason}`
+                              : ""}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -1358,8 +1494,7 @@ function NovoAtendimento() {
                   )}
 
                   {time &&
-                    selectedTimeSlots.length >
-                      1 && (
+                    selectedTimeSlots.length > 1 && (
                       <div className="mt-4 rounded-2xl bg-primary-soft px-4 py-3">
                         <p className="text-xs font-semibold text-primary">
                           Horários selecionados
