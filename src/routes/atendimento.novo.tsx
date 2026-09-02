@@ -3,11 +3,12 @@ import {
   ArrowLeft,
   CalendarDays,
   Check,
-  ChevronDown,
   Clock,
   Save,
+  Search,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
 
@@ -61,16 +62,6 @@ const paymentMethods = [
   "Outro",
 ];
 
-/**
- * Horários disponíveis para início.
- *
- * 20:00 continua sendo um horário possível de início.
- *
- * Por isso o expediente termina às 20:30.
- *
- * Se futuramente a podóloga decidir que o último início
- * deve ser 19:30, basta voltar WORK_END para 20:00.
- */
 const timeSlots = [
   "07:00",
   "07:30",
@@ -186,7 +177,6 @@ function getOccupiedSlots(
   }
 
   const startMinutes = timeToMinutes(startTime);
-
   const slotCount = Math.ceil(duration / 30);
 
   return Array.from(
@@ -260,6 +250,15 @@ function NovoAtendimento() {
 
   const [clientId, setClientId] = useState("");
   const [serviceId, setServiceId] = useState("");
+
+  const [clientSearch, setClientSearch] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
+
+  const [clientSearchOpen, setClientSearchOpen] =
+    useState(false);
+  const [serviceSearchOpen, setServiceSearchOpen] =
+    useState(false);
+
   const [date, setDate] = useState(today);
   const [time, setTime] = useState("");
   const [payment, setPayment] = useState(
@@ -269,6 +268,12 @@ function NovoAtendimento() {
 
   const [error, setError] = useState("");
 
+  const clientSearchRef =
+    useRef<HTMLDivElement>(null);
+
+  const serviceSearchRef =
+    useRef<HTMLDivElement>(null);
+
   const selectedClient = clients.find(
     (client) => client.id === clientId,
   );
@@ -276,6 +281,38 @@ function NovoAtendimento() {
   const selectedService = services.find(
     (service) => service.id === serviceId,
   );
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+
+      if (
+        clientSearchRef.current &&
+        !clientSearchRef.current.contains(target)
+      ) {
+        setClientSearchOpen(false);
+      }
+
+      if (
+        serviceSearchRef.current &&
+        !serviceSearchRef.current.contains(target)
+      ) {
+        setServiceSearchOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "pointerdown",
+      handlePointerDown,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handlePointerDown,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -360,12 +397,6 @@ function NovoAtendimento() {
     loadData();
   }, []);
 
-  /**
-   * Carrega:
-   *
-   * 1. atendimentos do dia
-   * 2. bloqueios manuais do dia
-   */
   useEffect(() => {
     async function loadSchedule() {
       if (!date) {
@@ -474,6 +505,78 @@ function NovoAtendimento() {
     setError("");
   }
 
+  function handleSelectClient(client: Client) {
+    setClientId(client.id);
+    setClientSearch(client.name);
+    setClientSearchOpen(false);
+    setError("");
+  }
+
+  function handleClearClient() {
+    setClientId("");
+    setClientSearch("");
+    setClientSearchOpen(false);
+    setError("");
+  }
+
+  function handleSelectService(service: Service) {
+    handleServiceChange(service.id);
+    setServiceSearch(service.name);
+    setServiceSearchOpen(false);
+    setError("");
+  }
+
+  function handleClearService() {
+    setServiceId("");
+    setServiceSearch("");
+    setServiceSearchOpen(false);
+    setTime("");
+    setError("");
+  }
+
+  const filteredClients = useMemo(() => {
+    const search = clientSearch
+      .trim()
+      .toLowerCase();
+
+    if (!search) {
+      return clients.slice(0, 8);
+    }
+
+    return clients
+      .filter((client) => {
+        const name =
+          client.name?.toLowerCase() ?? "";
+
+        const phone =
+          client.phone?.toLowerCase() ?? "";
+
+        return (
+          name.includes(search) ||
+          phone.includes(search)
+        );
+      })
+      .slice(0, 8);
+  }, [clients, clientSearch]);
+
+  const filteredServices = useMemo(() => {
+    const search = serviceSearch
+      .trim()
+      .toLowerCase();
+
+    if (!search) {
+      return services.slice(0, 8);
+    }
+
+    return services
+      .filter((service) =>
+        service.name
+          ?.toLowerCase()
+          .includes(search),
+      )
+      .slice(0, 8);
+  }, [services, serviceSearch]);
+
   function getExistingAppointmentDuration(
     appointment: Appointment,
   ) {
@@ -486,9 +589,6 @@ function NovoAtendimento() {
       : 30;
   }
 
-  /**
-   * Verifica se o horário bate com um bloqueio manual.
-   */
   function isTimeBlockedByAgenda(
     slot: string,
     duration: number,
@@ -512,9 +612,6 @@ function NovoAtendimento() {
     });
   }
 
-  /**
-   * Verifica conflito com atendimento existente.
-   */
   function isTimeOccupied(slot: string) {
     if (!selectedService) {
       return false;
@@ -546,9 +643,6 @@ function NovoAtendimento() {
     });
   }
 
-  /**
-   * Verifica se o horário já está fechado.
-   */
   function isTimeBlocked(slot: string) {
     if (!selectedService) {
       return false;
@@ -560,14 +654,6 @@ function NovoAtendimento() {
     );
   }
 
-  /**
-   * Horário disponível somente se:
-   *
-   * - o serviço existir
-   * - couber no expediente
-   * - não houver atendimento
-   * - não houver bloqueio manual
-   */
   function isTimeAvailable(slot: string) {
     if (!selectedService) {
       return false;
@@ -594,10 +680,6 @@ function NovoAtendimento() {
       return false;
     }
 
-    /**
-     * Se for hoje, também impede horários
-     * que já passaram.
-     */
     if (date === today) {
       const now = new Date();
 
@@ -899,9 +981,6 @@ function NovoAtendimento() {
       return;
     }
 
-    /**
-     * Reconsulta atendimentos.
-     */
     const {
       data: latestAppointments,
       error: latestAppointmentsError,
@@ -928,10 +1007,6 @@ function NovoAtendimento() {
       return;
     }
 
-    /**
-     * Reconsulta bloqueios imediatamente antes
-     * de salvar.
-     */
     const {
       data: latestBlocks,
       error: latestBlocksError,
@@ -1109,7 +1184,7 @@ function NovoAtendimento() {
           <ArrowLeft className="size-5" />
         </Link>
 
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">
             Novo atendimento
           </h1>
@@ -1134,41 +1209,93 @@ function NovoAtendimento() {
           {/* CLIENTE */}
           <section className="card-surface space-y-4 p-5">
             <div>
-              <label
-                htmlFor="client"
-                className="mb-2 block text-sm font-semibold"
-              >
+              <label className="mb-2 block text-sm font-semibold">
                 Cliente *
               </label>
 
-              <div className="relative">
-                <select
-                  id="client"
-                  value={clientId}
-                  onChange={(event) => {
-                    setClientId(event.target.value);
-                    setError("");
-                  }}
-                  disabled={clients.length === 0}
-                  className="h-14 w-full appearance-none rounded-2xl border border-border bg-background px-4 pr-11 text-[15px] outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="">
-                    {clients.length === 0
-                      ? "Nenhum cliente cadastrado"
-                      : "Selecione um cliente"}
-                  </option>
+              <div
+                ref={clientSearchRef}
+                className="relative"
+              >
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
 
-                  {clients.map((client) => (
-                    <option
-                      key={client.id}
-                      value={client.id}
+                  <input
+                    type="text"
+                    value={clientSearch}
+                    onChange={(event) => {
+                      setClientSearch(
+                        event.target.value,
+                      );
+                      setClientId("");
+                      setClientSearchOpen(true);
+                      setError("");
+                    }}
+                    onFocus={() =>
+                      setClientSearchOpen(true)
+                    }
+                    placeholder="Buscar cliente..."
+                    autoComplete="off"
+                    className="h-14 w-full rounded-2xl border border-border bg-background pl-12 pr-11 text-[15px] outline-none focus:border-primary"
+                  />
+
+                  {clientSearch && (
+                    <button
+                      type="button"
+                      onClick={handleClearClient}
+                      className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                      aria-label="Limpar cliente"
                     >
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
+                      <X className="size-4" />
+                    </button>
+                  )}
+                </div>
 
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+                {clientSearchOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+                    {filteredClients.length > 0 ? (
+                      <div className="max-h-72 overflow-y-auto p-1.5">
+                        {filteredClients.map(
+                          (client) => (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() =>
+                                handleSelectClient(
+                                  client,
+                                )
+                              }
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                            >
+                              <div className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-soft text-sm font-bold text-primary">
+                                {client.name
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold">
+                                  {client.name}
+                                </p>
+
+                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                  {client.phone ||
+                                    "Telefone não informado"}
+                                </p>
+                              </div>
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-5 text-center">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Nenhum cliente encontrado.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <Link
@@ -1183,14 +1310,25 @@ function NovoAtendimento() {
             </div>
 
             {selectedClient && (
-              <div className="rounded-2xl bg-primary-soft px-4 py-3">
-                <p className="text-sm font-semibold">
-                  {selectedClient.name}
-                </p>
+              <div className="flex items-center gap-3 rounded-2xl bg-primary-soft px-4 py-3">
+                <div className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                  {selectedClient.name
+                    .charAt(0)
+                    .toUpperCase()}
+                </div>
 
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {selectedClient.phone}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">
+                    {selectedClient.name}
+                  </p>
+
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {selectedClient.phone ||
+                      "Telefone não informado"}
+                  </p>
+                </div>
+
+                <Check className="size-5 shrink-0 text-primary" />
               </div>
             )}
           </section>
@@ -1198,42 +1336,97 @@ function NovoAtendimento() {
           {/* SERVIÇO */}
           <section className="card-surface space-y-4 p-5">
             <div>
-              <label
-                htmlFor="service"
-                className="mb-2 block text-sm font-semibold"
-              >
+              <label className="mb-2 block text-sm font-semibold">
                 Serviço *
               </label>
 
-              <div className="relative">
-                <select
-                  id="service"
-                  value={serviceId}
-                  onChange={(event) =>
-                    handleServiceChange(
-                      event.target.value,
-                    )
-                  }
-                  disabled={services.length === 0}
-                  className="h-14 w-full appearance-none rounded-2xl border border-border bg-background px-4 pr-11 text-[15px] outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="">
-                    {services.length === 0
-                      ? "Nenhum serviço cadastrado"
-                      : "Selecione um serviço"}
-                  </option>
+              <div
+                ref={serviceSearchRef}
+                className="relative"
+              >
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
 
-                  {services.map((service) => (
-                    <option
-                      key={service.id}
-                      value={service.id}
+                  <input
+                    type="text"
+                    value={serviceSearch}
+                    onChange={(event) => {
+                      setServiceSearch(
+                        event.target.value,
+                      );
+                      setServiceId("");
+                      setServiceSearchOpen(true);
+                      setTime("");
+                      setError("");
+                    }}
+                    onFocus={() =>
+                      setServiceSearchOpen(true)
+                    }
+                    placeholder="Buscar serviço..."
+                    autoComplete="off"
+                    className="h-14 w-full rounded-2xl border border-border bg-background pl-12 pr-11 text-[15px] outline-none focus:border-primary"
+                  />
+
+                  {serviceSearch && (
+                    <button
+                      type="button"
+                      onClick={handleClearService}
+                      className="absolute right-3 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                      aria-label="Limpar serviço"
                     >
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
+                      <X className="size-4" />
+                    </button>
+                  )}
+                </div>
 
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+                {serviceSearchOpen && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+                    {filteredServices.length > 0 ? (
+                      <div className="max-h-72 overflow-y-auto p-1.5">
+                        {filteredServices.map(
+                          (service) => (
+                            <button
+                              key={service.id}
+                              type="button"
+                              onClick={() =>
+                                handleSelectService(
+                                  service,
+                                )
+                              }
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                            >
+                              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary">
+                                <Clock className="size-4 text-primary" />
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold">
+                                  {service.name}
+                                </p>
+
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  {service.duration} min
+                                  {" • "}
+                                  {formatPrice(
+                                    Number(
+                                      service.price,
+                                    ),
+                                  )}
+                                </p>
+                              </div>
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-5 text-center">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Nenhum serviço encontrado.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <Link
@@ -1558,7 +1751,9 @@ function NovoAtendimento() {
                   ))}
                 </select>
 
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  ▾
+                </span>
               </div>
 
               <p className="mt-2 text-xs text-muted-foreground">
