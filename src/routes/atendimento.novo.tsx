@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Clock,
   Save,
@@ -103,6 +105,18 @@ function getToday() {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function shiftDate(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 function formatDate(value: string) {
@@ -267,6 +281,23 @@ function NovoAtendimento() {
   const [notes, setNotes] = useState("");
 
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(
+      window.location.search,
+    );
+
+    const initialDate = params.get("date");
+    const initialTime = params.get("time");
+
+    if (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
+      setDate(initialDate);
+    }
+
+    if (initialTime && /^\d{2}:\d{2}$/.test(initialTime)) {
+      setTime(initialTime);
+    }
+  }, []);
 
   const clientSearchRef =
     useRef<HTMLDivElement>(null);
@@ -494,8 +525,80 @@ function NovoAtendimento() {
   }, [date]);
 
   function handleDateChange(value: string) {
+    if (!value) return;
+
+    if (value < today) {
+      setDate(today);
+      setTime("");
+      setError("");
+      return;
+    }
+
     setDate(value);
     setTime("");
+    setError("");
+  }
+
+  function handlePreviousDate() {
+    if (date <= today) return;
+    handleDateChange(shiftDate(date, -1));
+  }
+
+  function handleNextDate() {
+    handleDateChange(shiftDate(date, 1));
+  }
+
+  function validateAndSetManualTime(value: string) {
+    if (!value) {
+      setTime("");
+      setError("");
+      return;
+    }
+
+    if (!selectedService) {
+      setTime(value);
+      setError("Selecione um serviço antes de informar o horário.");
+      return;
+    }
+
+    const duration = Number(selectedService.duration);
+
+    if (!/^\d{2}:\d{2}$/.test(value)) {
+      setTime(value);
+      return;
+    }
+
+    if (!canFitInsideWorkingHours(value, duration)) {
+      setTime(value);
+      setError(
+        `Este serviço dura ${duration} minutos e não cabe completamente até às ${WORK_END}.`,
+      );
+      return;
+    }
+
+    if (isTimeBlocked(value)) {
+      setTime(value);
+      setError("Esse horário está fechado na agenda.");
+      return;
+    }
+
+    if (isTimeOccupied(value)) {
+      setTime(value);
+      setError("Esse horário possui conflito com outro atendimento.");
+      return;
+    }
+
+    if (
+      date === today &&
+      timeToMinutes(value) <=
+        new Date().getHours() * 60 + new Date().getMinutes()
+    ) {
+      setTime(value);
+      setError("Esse horário já passou.");
+      return;
+    }
+
+    setTime(value);
     setError("");
   }
 
@@ -1481,21 +1584,40 @@ function NovoAtendimento() {
                 Data *
               </label>
 
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-primary" />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePreviousDate}
+                  disabled={date <= today}
+                  className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Dia anterior"
+                >
+                  <ChevronLeft className="size-5" />
+                </button>
 
-                <input
-                  id="date"
-                  type="date"
-                  min={today}
-                  value={date}
-                  onChange={(event) =>
-                    handleDateChange(
-                      event.target.value,
-                    )
-                  }
-                  className="h-14 w-full rounded-2xl border border-border bg-background pl-12 pr-4 text-[15px] outline-none focus:border-primary"
-                />
+                <div className="relative min-w-0 flex-1">
+                  <CalendarDays className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-primary" />
+
+                  <input
+                    id="date"
+                    type="date"
+                    min={today}
+                    value={date}
+                    onChange={(event) =>
+                      handleDateChange(event.target.value)
+                    }
+                    className="h-14 w-full rounded-2xl border border-border bg-background pl-12 pr-4 text-[15px] outline-none focus:border-primary"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNextDate}
+                  className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                  aria-label="Próximo dia"
+                >
+                  <ChevronRight className="size-5" />
+                </button>
               </div>
 
               <p className="mt-2 text-xs text-muted-foreground">
@@ -1605,6 +1727,52 @@ function NovoAtendimento() {
                         </button>
                       );
                     })}
+                  </div>
+
+                  <div className="mt-4">
+                    <label
+                      htmlFor="manual-time"
+                      className="mb-2 block text-sm font-semibold"
+                    >
+                      Ou informe um horário manualmente
+                    </label>
+
+                    <div className="flex items-center gap-3">
+                      <div className="relative min-w-0 flex-1">
+                        <Clock className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-primary" />
+
+                        <input
+                          id="manual-time"
+                          type="time"
+                          min={WORK_START}
+                          max={WORK_END}
+                          step={60}
+                          value={time}
+                          onChange={(event) =>
+                            validateAndSetManualTime(event.target.value)
+                          }
+                          className="h-14 w-full rounded-2xl border border-border bg-background pl-12 pr-4 text-[15px] outline-none focus:border-primary"
+                        />
+                      </div>
+
+                      {time && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTime("");
+                            setError("");
+                          }}
+                          className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                          aria-label="Limpar horário"
+                        >
+                          <X className="size-5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Você pode escolher um dos horários acima ou digitar outro horário.
+                    </p>
                   </div>
 
                   {availableTimeSlots.length === 0 && (
