@@ -78,10 +78,10 @@ function NovoServico() {
     }
 
     if (
-      !price ||
-      Number.isNaN(numericPrice) ||
-      numericPrice <= 0
-    ) {
+  !price ||
+  Number.isNaN(numericPrice) ||
+  numericPrice < 0
+) {
       setError("Informe um valor válido.");
       return;
     }
@@ -183,7 +183,7 @@ function NovoServico() {
 
               <input
                 type="number"
-                min="0.01"
+                min="0"
                 step="0.01"
                 value={price}
                 onChange={(event) => {

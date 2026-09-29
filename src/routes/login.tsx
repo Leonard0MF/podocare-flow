@@ -1,8 +1,4 @@
-import {
-  createFileRoute,
-  Link,
-  useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Eye,
   EyeOff,
@@ -10,29 +6,24 @@ import {
   Loader2,
 } from "lucide-react";
 import { useState } from "react";
-import { PrimaryButton } from "@/components/PrimaryButton";
-import { supabase } from "@/lib/supabase";
+
+import { PrimaryButton } from "../components/PrimaryButton";
+import {
+  setRememberMe,
+  supabase,
+} from "../lib/supabase";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({
-    meta: [
-      { title: "Entrar — Podocare" },
-      {
-        name: "description",
-        content: "Entre na sua conta do Podocare.",
-      },
-    ],
-  }),
-  component: Login,
+  component: LoginPage,
 });
 
-function Login() {
+function LoginPage() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
+  const [rememberMe, setRememberMeState] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -41,170 +32,108 @@ function Login() {
   ) {
     event.preventDefault();
 
-    if (loading) {
-      return;
-    }
-
     setError("");
-    setLoading(true);
 
-    const normalizedEmail = email.trim();
+    const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
       setError("Informe seu e-mail.");
-      setLoading(false);
       return;
     }
 
     if (!password) {
       setError("Informe sua senha.");
-      setLoading(false);
       return;
     }
 
+    setLoading(true);
+
     try {
       /*
-       * 1. Faz o login pelo Supabase Auth.
+       * Define a duração dos cookies ANTES do login.
+       *
+       * Marcado:
+       *   sessão sobrevive ao fechamento do navegador.
+       *
+       * Desmarcado:
+       *   sessão usa cookies de sessão.
        */
+      setRememberMe(rememberMe);
+
       const {
         data: loginData,
         error: loginError,
-      } =
-        await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
+      } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
       if (loginError) {
-        console.error(
-          "Erro no login:",
-          loginError,
-        );
-
-        if (
-          loginError.message
-            .toLowerCase()
-            .includes("invalid login credentials")
-        ) {
-          setError(
-            "E-mail ou senha incorretos.",
-          );
-        } else {
-          setError(
-            loginError.message ||
-              "Não foi possível entrar. Tente novamente.",
-          );
-        }
-
-        setLoading(false);
-        return;
-      }
-
-      /*
-       * 2. Confirma que o Supabase realmente
-       *    criou uma sessão.
-       */
-      if (!loginData.session) {
-        console.error(
-          "Login retornou sem sessão:",
-          loginData,
-        );
-
         setError(
-          "O login foi realizado, mas a sessão não foi criada. Tente novamente.",
+          loginError.message === "Invalid login credentials"
+            ? "E-mail ou senha incorretos."
+            : loginError.message,
         );
+        return;
+      }
 
-        setLoading(false);
+      if (!loginData.session) {
+        setError(
+          "Não foi possível criar a sessão. Tente novamente.",
+        );
         return;
       }
 
       /*
-       * 3. Confirma a sessão diretamente no cliente
-       *    antes de navegar.
+       * Confirma que a sessão está disponível no cliente.
        */
       const {
         data: sessionData,
-        error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError) {
-        console.error(
-          "Erro ao verificar sessão:",
-          sessionError,
-        );
-
-        setError(
-          "Não foi possível confirmar sua sessão. Tente novamente.",
-        );
-
-        setLoading(false);
-        return;
-      }
-
       if (!sessionData.session) {
-        console.error(
-          "Sessão não encontrada após login.",
-        );
-
         setError(
-          "Sua sessão não foi mantida. Tente novamente.",
+          "A sessão não foi estabelecida corretamente. Tente novamente.",
         );
-
-        setLoading(false);
         return;
       }
 
-      /*
-       * 4. Tudo certo.
-       *
-       * Agora podemos navegar para dentro
-       * da aplicação.
-       */
       await navigate({
         to: "/",
         replace: true,
       });
-    } catch (unknownError) {
-      console.error(
-        "Erro inesperado durante login:",
-        unknownError,
-      );
+    } catch (error) {
+      console.error(error);
 
       setError(
-        "Ocorreu um erro inesperado. Tente novamente.",
+        "Não foi possível entrar. Verifique sua conexão e tente novamente.",
       );
-
+    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-5 py-8">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
-        <header className="mb-8 text-center">
-          <div className="mx-auto mb-5 grid size-16 place-items-center rounded-2xl bg-primary-soft">
-            <LogIn className="size-7 text-primary" />
-          </div>
-
-          <h1 className="text-3xl font-bold tracking-tight">
-            Bem-vinda ao Podocare
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            Entrar
           </h1>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Entre na sua conta para acessar sua
-            clínica.
+            Acesse sua conta do Podocare
           </p>
-        </header>
+        </div>
 
         <form
           onSubmit={handleSubmit}
-          className="card-surface space-y-5 p-5"
+          className="space-y-5"
         >
-          {/* E-MAIL */}
-          <div>
+          <div className="space-y-2">
             <label
               htmlFor="email"
-              className="mb-2 block text-sm font-semibold"
+              className="text-sm font-medium text-foreground"
             >
               E-mail
             </label>
@@ -212,24 +141,21 @@ function Login() {
             <input
               id="email"
               type="email"
-              inputMode="email"
               autoComplete="email"
               value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                setError("");
-              }}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
               placeholder="seu@email.com"
               disabled={loading}
-              className="h-14 w-full rounded-2xl border border-border bg-background px-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary disabled:opacity-60"
+              className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
-          {/* SENHA */}
-          <div>
+          <div className="space-y-2">
             <label
               htmlFor="password"
-              className="mb-2 block text-sm font-semibold"
+              className="text-sm font-medium text-foreground"
             >
               Senha
             </label>
@@ -244,21 +170,18 @@ function Login() {
                 }
                 autoComplete="current-password"
                 value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setError("");
-                }}
-                placeholder="Sua senha"
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
+                placeholder="••••••••"
                 disabled={loading}
-                className="h-14 w-full rounded-2xl border border-border bg-background px-4 pr-12 text-[15px] outline-none transition-colors placeholder:text-muted-foreground focus:border-primary disabled:opacity-60"
+                className="w-full rounded-lg border border-input bg-background px-4 py-3 pr-12 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               />
 
               <button
                 type="button"
                 onClick={() =>
-                  setShowPassword(
-                    (current) => !current,
-                  )
+                  setShowPassword((current) => !current)
                 }
                 disabled={loading}
                 aria-label={
@@ -266,50 +189,67 @@ function Login() {
                     ? "Ocultar senha"
                     : "Mostrar senha"
                 }
-                className="absolute right-3 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
               >
                 {showPassword ? (
-                  <EyeOff className="size-5" />
+                  <EyeOff className="h-5 w-5" />
                 ) : (
-                  <Eye className="size-5" />
+                  <Eye className="h-5 w-5" />
                 )}
               </button>
             </div>
           </div>
 
-          {/* ERRO */}
+          <label className="flex cursor-pointer items-center gap-3 select-none">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(event) =>
+                setRememberMeState(event.target.checked)
+              }
+              disabled={loading}
+              className="h-4 w-4 rounded border-input accent-primary"
+            />
+
+            <span className="text-sm text-muted-foreground">
+              Manter-me conectado
+            </span>
+          </label>
+
           {error && (
             <div
               role="alert"
-              className="rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm font-medium leading-5 text-destructive"
+              className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive"
             >
               {error}
             </div>
           )}
 
-          {/* LOGIN */}
           <PrimaryButton
-            type="submit"
-            disabled={loading}
-          >
+  type="submit"
+  disabled={loading}
+>
             {loading ? (
               <>
-                <Loader2 className="size-5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 Entrando...
               </>
             ) : (
-              "Entrar"
+              <>
+                <LogIn className="h-4 w-4" />
+                Entrar
+              </>
             )}
           </PrimaryButton>
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Ainda não possui uma conta?{" "}
+          Ainda não tem uma conta?{" "}
           <Link
             to="/cadastro"
-            className="font-semibold text-primary hover:underline"
+            className="font-medium text-primary hover:underline"
           >
-            Criar minha conta
+            Criar conta
           </Link>
         </p>
       </div>

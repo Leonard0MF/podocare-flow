@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
-import { Route as AnamneseRouteImport } from './routes/anamnese'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as LoginRouteImport } from './routes/login'
@@ -19,13 +18,15 @@ import { Route as MaisRouteImport } from './routes/mais'
 import { Route as NotificacoesRouteImport } from './routes/notificacoes'
 import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as ServicosRouteImport } from './routes/servicos'
+import { Route as AnamneseIndexRouteImport } from './routes/anamnese.index'
 import { Route as AtendimentoNovoRouteImport } from './routes/atendimento.novo'
 import { Route as ClientesIndexRouteImport } from './routes/clientes.index'
 import { Route as ClientesClientIdRouteImport } from './routes/clientes.$clientId'
 import { Route as ClientesNovoRouteImport } from './routes/clientes.novo'
 import { Route as FichaTokenRouteImport } from './routes/ficha/$token'
 import { Route as ServicosNovoRouteImport } from './routes/servicos_.novo'
-import { Route as AnamneseVisualizarIdRouteImport } from './routes/anamnese/visualizar.$id'
+import { Route as AnamnesePreencherIdRouteImport } from './routes/anamnese.preencher.$id'
+import { Route as AnamneseVisualizarIdRouteImport } from './routes/anamnese.visualizar.$id'
 import { Route as ClientesClientIdIndexRouteImport } from './routes/clientes.$clientId.index'
 import { Route as ClientesClientIdEditarRouteImport } from './routes/clientes.$clientId.editar'
 import { Route as ServicosServiceIdEditarRouteImport } from './routes/servicos_.$serviceId.editar'
@@ -38,11 +39,6 @@ const IndexRoute = IndexRouteImport.update({
 const AgendaRoute = AgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnamneseRoute = AnamneseRouteImport.update({
-  id: '/anamnese',
-  path: '/anamnese',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroRoute = CadastroRouteImport.update({
@@ -80,6 +76,11 @@ const ServicosRoute = ServicosRouteImport.update({
   path: '/servicos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnamneseIndexRoute = AnamneseIndexRouteImport.update({
+  id: '/anamnese/',
+  path: '/anamnese/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AtendimentoNovoRoute = AtendimentoNovoRouteImport.update({
   id: '/atendimento/novo',
   path: '/atendimento/novo',
@@ -110,10 +111,15 @@ const ServicosNovoRoute = ServicosNovoRouteImport.update({
   path: '/servicos/novo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnamnesePreencherIdRoute = AnamnesePreencherIdRouteImport.update({
+  id: '/anamnese/preencher/$id',
+  path: '/anamnese/preencher/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AnamneseVisualizarIdRoute = AnamneseVisualizarIdRouteImport.update({
-  id: '/visualizar/$id',
-  path: '/visualizar/$id',
-  getParentRoute: () => AnamneseRoute,
+  id: '/anamnese/visualizar/$id',
+  path: '/anamnese/visualizar/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ClientesClientIdIndexRoute = ClientesClientIdIndexRouteImport.update({
   id: '/',
@@ -134,7 +140,6 @@ const ServicosServiceIdEditarRoute = ServicosServiceIdEditarRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/anamnese': typeof AnamneseRouteWithChildren
   '/cadastro': typeof CadastroRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/login': typeof LoginRoute
@@ -147,7 +152,9 @@ export interface FileRoutesByFullPath {
   '/clientes/novo': typeof ClientesNovoRoute
   '/ficha/$token': typeof FichaTokenRoute
   '/servicos/novo': typeof ServicosNovoRoute
+  '/anamnese/': typeof AnamneseIndexRoute
   '/clientes/': typeof ClientesIndexRoute
+  '/anamnese/preencher/$id': typeof AnamnesePreencherIdRoute
   '/anamnese/visualizar/$id': typeof AnamneseVisualizarIdRoute
   '/clientes/$clientId/editar': typeof ClientesClientIdEditarRoute
   '/servicos/$serviceId/editar': typeof ServicosServiceIdEditarRoute
@@ -156,7 +163,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/anamnese': typeof AnamneseRouteWithChildren
   '/cadastro': typeof CadastroRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/login': typeof LoginRoute
@@ -168,7 +174,9 @@ export interface FileRoutesByTo {
   '/clientes/novo': typeof ClientesNovoRoute
   '/ficha/$token': typeof FichaTokenRoute
   '/servicos/novo': typeof ServicosNovoRoute
+  '/anamnese': typeof AnamneseIndexRoute
   '/clientes': typeof ClientesIndexRoute
+  '/anamnese/preencher/$id': typeof AnamnesePreencherIdRoute
   '/anamnese/visualizar/$id': typeof AnamneseVisualizarIdRoute
   '/clientes/$clientId/editar': typeof ClientesClientIdEditarRoute
   '/servicos/$serviceId/editar': typeof ServicosServiceIdEditarRoute
@@ -178,7 +186,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/anamnese': typeof AnamneseRouteWithChildren
   '/cadastro': typeof CadastroRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/login': typeof LoginRoute
@@ -191,7 +198,9 @@ export interface FileRoutesById {
   '/clientes/novo': typeof ClientesNovoRoute
   '/ficha/$token': typeof FichaTokenRoute
   '/servicos_/novo': typeof ServicosNovoRoute
+  '/anamnese/': typeof AnamneseIndexRoute
   '/clientes/': typeof ClientesIndexRoute
+  '/anamnese/preencher/$id': typeof AnamnesePreencherIdRoute
   '/anamnese/visualizar/$id': typeof AnamneseVisualizarIdRoute
   '/clientes/$clientId/editar': typeof ClientesClientIdEditarRoute
   '/servicos_/$serviceId/editar': typeof ServicosServiceIdEditarRoute
@@ -202,7 +211,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agenda'
-    | '/anamnese'
     | '/cadastro'
     | '/configuracoes'
     | '/login'
@@ -215,7 +223,9 @@ export interface FileRouteTypes {
     | '/clientes/novo'
     | '/ficha/$token'
     | '/servicos/novo'
+    | '/anamnese/'
     | '/clientes/'
+    | '/anamnese/preencher/$id'
     | '/anamnese/visualizar/$id'
     | '/clientes/$clientId/editar'
     | '/servicos/$serviceId/editar'
@@ -224,7 +234,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agenda'
-    | '/anamnese'
     | '/cadastro'
     | '/configuracoes'
     | '/login'
@@ -236,7 +245,9 @@ export interface FileRouteTypes {
     | '/clientes/novo'
     | '/ficha/$token'
     | '/servicos/novo'
+    | '/anamnese'
     | '/clientes'
+    | '/anamnese/preencher/$id'
     | '/anamnese/visualizar/$id'
     | '/clientes/$clientId/editar'
     | '/servicos/$serviceId/editar'
@@ -245,7 +256,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agenda'
-    | '/anamnese'
     | '/cadastro'
     | '/configuracoes'
     | '/login'
@@ -258,7 +268,9 @@ export interface FileRouteTypes {
     | '/clientes/novo'
     | '/ficha/$token'
     | '/servicos_/novo'
+    | '/anamnese/'
     | '/clientes/'
+    | '/anamnese/preencher/$id'
     | '/anamnese/visualizar/$id'
     | '/clientes/$clientId/editar'
     | '/servicos_/$serviceId/editar'
@@ -268,7 +280,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
-  AnamneseRoute: typeof AnamneseRouteWithChildren
   CadastroRoute: typeof CadastroRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   LoginRoute: typeof LoginRoute
@@ -281,7 +292,10 @@ export interface RootRouteChildren {
   ClientesNovoRoute: typeof ClientesNovoRoute
   FichaTokenRoute: typeof FichaTokenRoute
   ServicosNovoRoute: typeof ServicosNovoRoute
+  AnamneseIndexRoute: typeof AnamneseIndexRoute
   ClientesIndexRoute: typeof ClientesIndexRoute
+  AnamnesePreencherIdRoute: typeof AnamnesePreencherIdRoute
+  AnamneseVisualizarIdRoute: typeof AnamneseVisualizarIdRoute
   ServicosServiceIdEditarRoute: typeof ServicosServiceIdEditarRoute
 }
 
@@ -299,13 +313,6 @@ declare module '@tanstack/react-router' {
       path: '/agenda'
       fullPath: '/agenda'
       preLoaderRoute: typeof AgendaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/anamnese': {
-      id: '/anamnese'
-      path: '/anamnese'
-      fullPath: '/anamnese'
-      preLoaderRoute: typeof AnamneseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro': {
@@ -357,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/anamnese/': {
+      id: '/anamnese/'
+      path: '/anamnese'
+      fullPath: '/anamnese/'
+      preLoaderRoute: typeof AnamneseIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/atendimento/novo': {
       id: '/atendimento/novo'
       path: '/atendimento/novo'
@@ -399,12 +413,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicosNovoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/anamnese/preencher/$id': {
+      id: '/anamnese/preencher/$id'
+      path: '/anamnese/preencher/$id'
+      fullPath: '/anamnese/preencher/$id'
+      preLoaderRoute: typeof AnamnesePreencherIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/anamnese/visualizar/$id': {
       id: '/anamnese/visualizar/$id'
-      path: '/visualizar/$id'
+      path: '/anamnese/visualizar/$id'
       fullPath: '/anamnese/visualizar/$id'
       preLoaderRoute: typeof AnamneseVisualizarIdRouteImport
-      parentRoute: typeof AnamneseRoute
+      parentRoute: typeof rootRouteImport
     }
     '/clientes/$clientId/': {
       id: '/clientes/$clientId/'
@@ -430,18 +451,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AnamneseRouteChildren {
-  AnamneseVisualizarIdRoute: typeof AnamneseVisualizarIdRoute
-}
-
-const AnamneseRouteChildren: AnamneseRouteChildren = {
-  AnamneseVisualizarIdRoute: AnamneseVisualizarIdRoute,
-}
-
-const AnamneseRouteWithChildren = AnamneseRoute._addFileChildren(
-  AnamneseRouteChildren,
-)
-
 interface ClientesClientIdRouteChildren {
   ClientesClientIdEditarRoute: typeof ClientesClientIdEditarRoute
   ClientesClientIdIndexRoute: typeof ClientesClientIdIndexRoute
@@ -458,7 +467,6 @@ const ClientesClientIdRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
-  AnamneseRoute: AnamneseRouteWithChildren,
   CadastroRoute: CadastroRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
   LoginRoute: LoginRoute,
@@ -471,7 +479,10 @@ const rootRouteChildren: RootRouteChildren = {
   ClientesNovoRoute: ClientesNovoRoute,
   FichaTokenRoute: FichaTokenRoute,
   ServicosNovoRoute: ServicosNovoRoute,
+  AnamneseIndexRoute: AnamneseIndexRoute,
   ClientesIndexRoute: ClientesIndexRoute,
+  AnamnesePreencherIdRoute: AnamnesePreencherIdRoute,
+  AnamneseVisualizarIdRoute: AnamneseVisualizarIdRoute,
   ServicosServiceIdEditarRoute: ServicosServiceIdEditarRoute,
 }
 export const routeTree = rootRouteImport

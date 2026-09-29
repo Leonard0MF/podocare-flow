@@ -2,19 +2,15 @@ import { createServerClient } from "@supabase/ssr";
 import {
   getCookies,
   setCookie,
+  setResponseHeader,
 } from "@tanstack/react-start/server";
 
 /*
  * Cliente do Supabase para uso NO SERVIDOR — dentro de server
  * functions e do `beforeLoad` de rotas.
  *
- * Lê a sessão a partir dos cookies da própria requisição, e
- * repassa qualquer renovação de sessão (refresh do token) de
- * volta como cookie na resposta.
- *
- * IMPORTANTE: só funciona corretamente se o cliente do
- * navegador (src/lib/supabase.ts) também guardar a sessão em
- * cookie — por isso os dois arquivos precisam estar alinhados.
+ * Lê a sessão a partir dos cookies da requisição e repassa
+ * qualquer renovação de sessão para a resposta.
  */
 export function getSupabaseServerClient() {
   const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"];
@@ -41,10 +37,16 @@ export function getSupabaseServerClient() {
           );
         },
 
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(
             ({ name, value, options }) => {
               setCookie(name, value, options);
+            },
+          );
+
+          Object.entries(headers).forEach(
+            ([name, value]) => {
+              setResponseHeader(name, value);
             },
           );
         },
