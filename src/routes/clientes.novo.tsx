@@ -6,10 +6,13 @@ import {
 import { ArrowLeft, Save } from "lucide-react";
 import { useState } from "react";
 import { Screen } from "@/components/Screen";
+import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/clientes/novo")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { from?: "atendimento" | undefined } => ({
   from:
     search["from"] === "atendimento"
       ? "atendimento"
@@ -89,9 +92,7 @@ function NovoCliente() {
     ? "/atendimento/novo"
     : "/clientes";
 
-  const today = new Date()
-    .toISOString()
-    .split("T")[0];
+  const today = getToday();
 
   const [form, setForm] = useState({
     name: "",

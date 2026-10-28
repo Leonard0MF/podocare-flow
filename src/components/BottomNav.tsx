@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { CalendarDays, Home, LayoutGrid, Users } from "lucide-react";
 
 const items = [
@@ -8,7 +8,21 @@ const items = [
   { to: "/mais", label: "Mais", icon: LayoutGrid },
 ] as const;
 
+/*
+ * Telas sem navegação: autenticação e a ficha pública,
+ * que é aberta pela cliente.
+ */
+const hiddenPrefixes = ["/login", "/cadastro", "/ficha"];
+
 export function BottomNav() {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+
+  if (hiddenPrefixes.some((prefix) => pathname.startsWith(prefix))) {
+    return null;
+  }
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
       <ul className="mx-auto flex max-w-lg items-stretch justify-between px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">

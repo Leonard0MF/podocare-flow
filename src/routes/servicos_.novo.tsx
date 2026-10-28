@@ -9,7 +9,9 @@ import { PageHeader, Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/servicos_/novo")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { from?: "atendimento" | undefined } => ({
     from:
       search["from"] === "atendimento"
         ? ("atendimento" as const)

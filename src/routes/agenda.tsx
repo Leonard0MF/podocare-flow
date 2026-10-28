@@ -119,7 +119,7 @@ function getToday() {
   return `${year}-${month}-${day}`;
 }
 
-function formatDate(value: string) {
+function formatDate(value: string | undefined) {
   if (!value) {
     return "";
   }
@@ -1854,6 +1854,18 @@ function Agenda() {
     }
 
     const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      setError(
+        "Usuário não autenticado.",
+      );
+      return;
+    }
+
+    const {
       error: updateError,
     } = await supabase
       .from("appointments")
@@ -1863,6 +1875,10 @@ function Agenda() {
       .eq(
         "id",
         selectedAppointment.id,
+      )
+      .eq(
+        "user_id",
+        user.id,
       );
 
     if (updateError) {
@@ -1922,6 +1938,18 @@ function Agenda() {
     }
 
     const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      setError(
+        "Usuário não autenticado.",
+      );
+      return;
+    }
+
+    const {
       error: deleteError,
     } = await supabase
       .from("appointments")
@@ -1929,6 +1957,10 @@ function Agenda() {
       .eq(
         "id",
         selectedAppointment.id,
+      )
+      .eq(
+        "user_id",
+        user.id,
       );
 
     if (deleteError) {
@@ -1981,6 +2013,18 @@ function Agenda() {
       new Date().toISOString();
 
     const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      setError(
+        "Usuário não autenticado.",
+      );
+      return;
+    }
+
+    const {
       error: updateError,
     } = await supabase
       .from("appointments")
@@ -1992,6 +2036,10 @@ function Agenda() {
       .eq(
         "id",
         selectedAppointment.id,
+      )
+      .eq(
+        "user_id",
+        user.id,
       );
 
     if (updateError) {

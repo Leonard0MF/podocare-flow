@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Screen } from "@/components/Screen";
+import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 
 type ClientForm = {
@@ -87,7 +88,7 @@ function EditarCliente() {
     notes: "",
   });
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getToday();
 
   useEffect(() => {
     let mounted = true;

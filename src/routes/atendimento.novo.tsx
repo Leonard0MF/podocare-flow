@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
+import { notifyAppointmentCreated } from "@/lib/notifications";
 
 export const Route = createFileRoute("/atendimento/novo")({
   head: () => ({
@@ -153,6 +154,28 @@ function minutesToTime(minutes: number) {
   ).padStart(2, "0")}`;
 }
 
+/*
+ * A Agenda grava cada horário fechado como uma linha em
+ * `agenda_bloqueios` (um slot de 30 min). Aqui convertemos
+ * para o formato de intervalo usado nas verificações.
+ */
+function toAgendaBlock(row: {
+  id: string;
+  appointment_date: string;
+  appointment_time: string;
+  reason: string | null;
+}): AgendaBlock {
+  const startTime = row.appointment_time.slice(0, 5);
+
+  return {
+    id: row.id,
+    block_date: row.appointment_date,
+    start_time: startTime,
+    end_time: minutesToTime(timeToMinutes(startTime) + 30),
+    reason: row.reason,
+  };
+}
+
 function getAppointmentEndTime(
   startTime: string,
   duration: number,
@@ -211,33 +234,6 @@ function canFitInsideWorkingHours(
     startMinutes >= timeToMinutes(WORK_START) &&
     endMinutes <= timeToMinutes(WORK_END)
   );
-}
-
-function showAppointmentNotification(
-  clientName: string,
-  serviceName: string,
-  date: string,
-  time: string,
-) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (!("Notification" in window)) {
-    return;
-  }
-
-  if (Notification.permission !== "granted") {
-    return;
-  }
-
-  new Notification("Atendimento agendado", {
-    body: `${clientName} — ${serviceName}\n${formatDate(
-      date,
-    )} às ${time}`,
-    icon: "/favicon.ico",
-    tag: `appointment-${date}-${time}`,
-  });
 }
 
 function NovoAtendimento() {
@@ -467,13 +463,13 @@ function NovoAtendimento() {
           }),
 
         supabase
-          .from("agenda_blocks")
+          .from("agenda_bloqueios")
           .select(
-            "id, block_date, start_time, end_time, reason",
+            "id, appointment_date, appointment_time, reason",
           )
           .eq("user_id", user.id)
-          .eq("block_date", date)
-          .order("start_time", {
+          .eq("appointment_date", date)
+          .order("appointment_time", {
             ascending: true,
           }),
       ]);
@@ -515,7 +511,7 @@ function NovoAtendimento() {
       );
 
       setAgendaBlocks(
-        (blocksData ?? []) as AgendaBlock[],
+        (blocksData ?? []).map(toAgendaBlock),
       );
 
       setLoadingAppointments(false);
@@ -1114,12 +1110,12 @@ function NovoAtendimento() {
       data: latestBlocks,
       error: latestBlocksError,
     } = await supabase
-      .from("agenda_blocks")
+      .from("agenda_bloqueios")
       .select(
-        "id, block_date, start_time, end_time, reason",
+        "id, appointment_date, appointment_time, reason",
       )
       .eq("user_id", user.id)
-      .eq("block_date", date);
+      .eq("appointment_date", date);
 
     if (latestBlocksError) {
       console.error(
@@ -1136,8 +1132,12 @@ function NovoAtendimento() {
       return;
     }
 
+    const latestBlockList = (latestBlocks ?? []).map(
+      toAgendaBlock,
+    );
+
     const latestBlockConflict =
-      (latestBlocks ?? []).some((block) => {
+      latestBlockList.some((block) => {
         const blockStart = block.start_time.slice(
           0,
           5,
@@ -1159,9 +1159,7 @@ function NovoAtendimento() {
     if (latestBlockConflict) {
       setLoadingSubmit(false);
 
-      setAgendaBlocks(
-        (latestBlocks ?? []) as AgendaBlock[],
-      );
+      setAgendaBlocks(latestBlockList);
 
       setError(
         "Esse horário acabou de ser fechado na agenda. Escolha outro horário.",
@@ -1249,9 +1247,9 @@ function NovoAtendimento() {
         databaseMessage.includes("date")
       ) {
         setError(
-          `O banco recusou a data ${formatDate(
+          `Não foi possível agendar para ${formatDate(
             date,
-          )}. Verifique a constraint/trigger da tabela appointments no Supabase.`,
+          )}. Verifique a data escolhida e tente novamente.`,
         );
       } else {
         setError(
@@ -1262,12 +1260,12 @@ function NovoAtendimento() {
       return;
     }
 
-    showAppointmentNotification(
-      selectedClient.name,
-      selectedService.name,
+    notifyAppointmentCreated({
+      clientName: selectedClient.name,
+      serviceName: selectedService.name,
       date,
       time,
-    );
+    });
 
     setLoadingSubmit(false);
 
