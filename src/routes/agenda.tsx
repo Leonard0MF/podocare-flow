@@ -19,7 +19,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { PageHeader } from "@/components/Screen";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/agenda")({
@@ -73,8 +79,6 @@ type AgendaBlock = {
   reason: string | null;
 };
 
-const views = ["Dia", "Semana", "Mês"] as const;
-
 const slots = [
   "07:00",
   "07:30",
@@ -105,8 +109,6 @@ const slots = [
   "20:00",
 ];
 
-const BOTTOM_SAFE_AREA_PX = 104;
-const MIN_AGENDA_HEIGHT_PX = 240;
 const SLOT_HEIGHT_PX = 56;
 
 function getToday() {
@@ -426,12 +428,21 @@ function Agenda() {
   ] = useState(getToday());
 
   const [
-    activeView,
-    setActiveView,
-  ] =
-    useState<(typeof views)[number]>(
-      "Dia",
-    );
+    calendarOpen,
+    setCalendarOpen,
+  ] = useState(false);
+
+  const [
+    calendarMonth,
+    setCalendarMonth,
+  ] = useState(getToday());
+
+  const [
+    monthCounts,
+    setMonthCounts,
+  ] = useState<Record<string, number>>(
+    {},
+  );
 
   const [
     selectedAppointment,
@@ -458,13 +469,6 @@ function Agenda() {
     setShowFloatingButton,
   ] = useState(true);
 
-  const [
-    agendaHeight,
-    setAgendaHeight,
-  ] = useState<number | null>(
-    null,
-  );
-
   const agendaScrollRef =
     useRef<HTMLDivElement | null>(
       null,
@@ -472,6 +476,16 @@ function Agenda() {
 
   const userScrolledRef =
     useRef(false);
+
+  /*
+   * Data para a qual já rolamos até "agora". Evita
+   * rolar de novo quando os dados recarregam.
+   */
+  const scrolledToNowRef =
+    useRef<string | null>(null);
+
+  const swipeStartXRef =
+    useRef<number | null>(null);
 
   const lastTapRef =
     useRef<{
@@ -489,12 +503,21 @@ function Agenda() {
     [selectedDate],
   );
 
+  const weekStart = weekDates[0]!;
+  const weekEnd = weekDates[6]!;
+
+  /*
+   * Dias anteriores a hoje: só consulta.
+   */
+  const isPastDate =
+    selectedDate < today;
+
   const monthDates = useMemo(
     () =>
       getMonthCalendarDates(
-        selectedDate,
+        calendarMonth,
       ),
-    [selectedDate],
+    [calendarMonth],
   );
 
   const blocksForSelectedDate =
@@ -585,40 +608,19 @@ function Agenda() {
           user.id,
         );
 
-      if (activeView === "Dia") {
-        query = query.eq(
+      /*
+       * Carrega a semana inteira: trocar de dia
+       * dentro dela não precisa de nova busca.
+       */
+      query = query
+        .gte(
           "appointment_date",
-          selectedDate,
+          weekStart,
+        )
+        .lte(
+          "appointment_date",
+          weekEnd,
         );
-      }
-
-      if (
-        activeView === "Semana"
-      ) {
-        query = query
-          .gte(
-            "appointment_date",
-            weekDates[0],
-          )
-          .lte(
-            "appointment_date",
-            weekDates[6],
-          );
-      }
-
-      if (activeView === "Mês") {
-        query = query
-          .gte(
-            "appointment_date",
-            monthDates[0],
-          )
-          .lte(
-            "appointment_date",
-            monthDates[
-              monthDates.length - 1
-            ],
-          );
-      }
 
       const {
         data,
@@ -696,12 +698,7 @@ function Agenda() {
     }
 
     loadAppointments();
-  }, [
-    selectedDate,
-    activeView,
-    weekDates,
-    monthDates,
-  ]);
+  }, [weekStart, weekEnd]);
 
   /*
    * CARREGA HORÁRIOS FECHADOS
@@ -727,40 +724,19 @@ function Agenda() {
           user.id,
         );
 
-      if (activeView === "Dia") {
-        query = query.eq(
+      /*
+       * Carrega a semana inteira: trocar de dia
+       * dentro dela não precisa de nova busca.
+       */
+      query = query
+        .gte(
           "appointment_date",
-          selectedDate,
+          weekStart,
+        )
+        .lte(
+          "appointment_date",
+          weekEnd,
         );
-      }
-
-      if (
-        activeView === "Semana"
-      ) {
-        query = query
-          .gte(
-            "appointment_date",
-            weekDates[0],
-          )
-          .lte(
-            "appointment_date",
-            weekDates[6],
-          );
-      }
-
-      if (activeView === "Mês") {
-        query = query
-          .gte(
-            "appointment_date",
-            monthDates[0],
-          )
-          .lte(
-            "appointment_date",
-            monthDates[
-              monthDates.length - 1
-            ],
-          );
-      }
 
       const {
         data,
@@ -798,19 +774,13 @@ function Agenda() {
     }
 
     loadAgendaBlocks();
-  }, [
-    selectedDate,
-    activeView,
-    weekDates,
-    monthDates,
-  ]);
+  }, [weekStart, weekEnd]);
 
   /*
    * AUTO CONCLUSÃO
    */
   useEffect(() => {
     if (
-      activeView !== "Dia" ||
       selectedDate !== today ||
       appointments.length === 0
     ) {
@@ -934,92 +904,8 @@ function Agenda() {
   }, [
     appointments,
     currentMinutes,
-    activeView,
     selectedDate,
     today,
-  ]);
-
-  /*
-   * ALTURA DA AGENDA
-   */
-  useEffect(() => {
-    if (activeView !== "Dia") {
-      return;
-    }
-
-    function updateAgendaHeight() {
-      const container =
-        agendaScrollRef.current;
-
-      if (!container) {
-        return;
-      }
-
-      const top =
-        container.getBoundingClientRect()
-          .top;
-
-      const viewportHeight =
-        window.visualViewport
-          ?.height ??
-        window.innerHeight;
-
-      const available =
-        viewportHeight -
-        top -
-        BOTTOM_SAFE_AREA_PX;
-
-      setAgendaHeight(
-        Math.max(
-          MIN_AGENDA_HEIGHT_PX,
-          Math.floor(
-            available,
-          ),
-        ),
-      );
-    }
-
-    const raf =
-      requestAnimationFrame(
-        updateAgendaHeight,
-      );
-
-    window.addEventListener(
-      "resize",
-      updateAgendaHeight,
-    );
-
-    window.addEventListener(
-      "orientationchange",
-      updateAgendaHeight,
-    );
-
-    window.visualViewport?.addEventListener(
-      "resize",
-      updateAgendaHeight,
-    );
-
-    return () => {
-      cancelAnimationFrame(raf);
-
-      window.removeEventListener(
-        "resize",
-        updateAgendaHeight,
-      );
-
-      window.removeEventListener(
-        "orientationchange",
-        updateAgendaHeight,
-      );
-
-      window.visualViewport?.removeEventListener(
-        "resize",
-        updateAgendaHeight,
-      );
-    };
-  }, [
-    activeView,
-    loading,
   ]);
 
   /*
@@ -1027,9 +913,10 @@ function Agenda() {
    */
   useEffect(() => {
     if (
-      activeView !== "Dia" ||
       selectedDate !== today ||
-      loading
+      loading ||
+      scrolledToNowRef.current ===
+        selectedDate
     ) {
       return;
     }
@@ -1040,6 +927,9 @@ function Agenda() {
     if (!container) {
       return;
     }
+
+    scrolledToNowRef.current =
+      selectedDate;
 
     const currentSlotIndex =
       slots.findIndex(
@@ -1073,15 +963,13 @@ function Agenda() {
           0,
           targetTop,
         ),
-        behavior: "smooth",
+        behavior: "auto",
       });
     });
   }, [
-    activeView,
     selectedDate,
     today,
     loading,
-    agendaHeight,
   ]);
 
   /*
@@ -1091,10 +979,7 @@ function Agenda() {
     const container =
       agendaScrollRef.current;
 
-    if (
-      !container ||
-      activeView !== "Dia"
-    ) {
+    if (!container) {
       setShowFloatingButton(true);
       return;
     }
@@ -1184,7 +1069,6 @@ function Agenda() {
       );
     };
   }, [
-    activeView,
     selectedDate,
     loading,
     appointments,
@@ -1196,10 +1080,7 @@ function Agenda() {
       false;
 
     setShowFloatingButton(true);
-  }, [
-    activeView,
-    selectedDate,
-  ]);
+  }, [selectedDate]);
 
   function getAppointmentForSlot(
     slot: string,
@@ -1379,6 +1260,10 @@ function Agenda() {
   function handleNewAppointmentAtSlot(
     slot: string,
   ) {
+    if (isPastDate) {
+      return;
+    }
+
     const params =
       new URLSearchParams({
         date: selectedDate,
@@ -1393,6 +1278,10 @@ function Agenda() {
   function handleSlotInteraction(
     slot: string,
   ) {
+    if (isPastDate) {
+      return;
+    }
+
     if (
       getAppointmentForSlot(slot) ||
       getOccupiedAppointment(slot) ||
@@ -1487,6 +1376,10 @@ function Agenda() {
   }
 
   async function handleBlockSelectedSlots() {
+    if (isPastDate) {
+      return;
+    }
+
     if (
       selectedSlots.length === 0
     ) {
@@ -1594,6 +1487,10 @@ function Agenda() {
   }
 
   async function handleUnlockAllBlocksForDate() {
+    if (isPastDate) {
+      return;
+    }
+
     if (
       blocksForSelectedDate.length ===
       0
@@ -1678,6 +1575,10 @@ function Agenda() {
   async function handleToggleAgendaBlock(
     slot: string,
   ) {
+    if (isPastDate) {
+      return;
+    }
+
     const existingBlock =
       getAgendaBlockForSlot(slot);
 
@@ -2093,10 +1994,6 @@ function Agenda() {
       return;
     }
 
-    if (date < today) {
-      return;
-    }
-
     setSelectedDate(date);
     setSelectedAppointment(
       null,
@@ -2105,738 +2002,509 @@ function Agenda() {
   }
 
   /*
-   * NAVEGAÇÃO ENTRE DATAS
+   * NAVEGAÇÃO ENTRE SEMANAS
    */
-  function handlePreviousPeriod() {
-    if (activeView === "Dia") {
-      const previousDate =
-        addDays(
-          selectedDate,
-          -1,
-        );
-
-      if (
-        previousDate < today
-      ) {
-        return;
-      }
-
-      setSelectedDate(
-        previousDate,
-      );
-      setSelectedAppointment(
-        null,
-      );
-      setSelectedSlots([]);
-
-      return;
-    }
-
-    if (
-      activeView === "Semana"
-    ) {
-      const previousWeek =
-        addDays(
-          selectedDate,
-          -7,
-        );
-
-      if (
-        previousWeek < today
-      ) {
-        return;
-      }
-
-      setSelectedDate(
-        previousWeek,
-      );
-      setSelectedAppointment(
-        null,
-      );
-      setSelectedSlots([]);
-
-      return;
-    }
-
-    const currentMonth =
-      parseLocalDate(
-        selectedDate,
-      );
-
-    const previousMonth =
-      new Date(
-        currentMonth.getFullYear(),
-        currentMonth.getMonth() -
-          1,
-        1,
-      );
-
-    const previousMonthStart =
-      dateToString(
-        previousMonth,
-      );
-
-    const previousMonthEnd =
-      dateToString(
-        new Date(
-          previousMonth.getFullYear(),
-          previousMonth.getMonth() +
-            1,
-          0,
-        ),
-      );
-
-    if (
-      previousMonthEnd < today
-    ) {
-      return;
-    }
-
-    setSelectedDate(
-      previousMonthStart <
-        today
-        ? today
-        : previousMonthStart,
-    );
-
-    setSelectedAppointment(
-      null,
-    );
-
-    setSelectedSlots([]);
-  }
-
-  function handleNextPeriod() {
-    if (activeView === "Dia") {
-      setSelectedDate(
-        addDays(
-          selectedDate,
-          1,
-        ),
-      );
-    }
-
-    if (
-      activeView === "Semana"
-    ) {
-      setSelectedDate(
-        addDays(
-          selectedDate,
-          7,
-        ),
-      );
-    }
-
-    if (activeView === "Mês") {
-      const currentMonth =
-        parseLocalDate(
-          selectedDate,
-        );
-
-      const nextMonth =
-        new Date(
-          currentMonth.getFullYear(),
-          currentMonth.getMonth() +
-            1,
-          1,
-        );
-
-      setSelectedDate(
-        dateToString(
-          nextMonth,
-        ),
-      );
-    }
-
-    setSelectedAppointment(
-      null,
-    );
-
-    setSelectedSlots([]);
-  }
-
-  function handleChangeView(
-    view: (typeof views)[number],
+  function handleChangeWeek(
+    direction: 1 | -1,
   ) {
-    setActiveView(view);
-    setSelectedAppointment(
-      null,
+    handleSelectDate(
+      addDays(
+        selectedDate,
+        direction * 7,
+      ),
     );
-    setSelectedSlots([]);
   }
 
-  /*
-   * RENDERIZAÇÃO SEMANA
-   */
-  function renderWeekView() {
-    return (
-      <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
-        <div className="border-b border-border p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold">
-                Semana
-              </h2>
+  function handleGoToToday() {
+    scrolledToNowRef.current = null;
+    handleSelectDate(today);
+  }
 
-              <p className="text-xs text-muted-foreground">
-                Toque em um dia para abrir a agenda.
-              </p>
-            </div>
+  function handleWeekTouchStart(
+    event: React.TouchEvent,
+  ) {
+    swipeStartXRef.current =
+      event.touches[0]?.clientX ??
+      null;
+  }
 
-            <div className="rounded-full bg-primary/10 px-3 py-1.5 text-[10px] font-bold capitalize text-primary">
-              {formatMonth(
-                selectedDate,
-              )}
-            </div>
-          </div>
-        </div>
+  function handleWeekTouchEnd(
+    event: React.TouchEvent,
+  ) {
+    const startX =
+      swipeStartXRef.current;
 
-        <div className="grid grid-cols-7 border-b border-border">
-          {weekDates.map(
-            (date) => {
-              const isSelected =
-                date ===
-                selectedDate;
+    swipeStartXRef.current = null;
 
-              const isToday =
-                date === today;
+    const endX =
+      event.changedTouches[0]
+        ?.clientX;
 
-              const dayAppointments =
-                getAppointmentsForDate(
-                  date,
-                );
+    if (
+      startX === null ||
+      endX === undefined
+    ) {
+      return;
+    }
 
-              const dayBlocks =
-                agendaBlocks.filter(
-                  (block) =>
-                    block.appointment_date ===
-                    date,
-                );
+    const distance = endX - startX;
 
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  onClick={() =>
-                    handleSelectDate(
-                      date,
-                    )
-                  }
-                  className={`min-w-0 border-r border-border px-1 py-3 text-center transition-colors last:border-r-0 ${
-                    isSelected
-                      ? "bg-primary/10"
-                      : "hover:bg-secondary/60"
-                  }`}
-                >
-                  <span
-                    className={`block truncate text-[9px] font-bold uppercase ${
-                      isSelected
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {formatWeekDay(
-                      date,
-                    ).replace(
-                      ".",
-                      "",
-                    )}
-                  </span>
+    if (Math.abs(distance) < 50) {
+      return;
+    }
 
-                  <span
-                    className={`mx-auto mt-1 grid size-8 place-items-center rounded-full text-sm font-bold ${
-                      isToday
-                        ? "bg-primary text-primary-foreground"
-                        : isSelected
-                          ? "bg-primary/15 text-primary"
-                          : "text-foreground"
-                    }`}
-                  >
-                    {parseLocalDate(
-                      date,
-                    ).getDate()}
-                  </span>
-
-                  <div className="mt-2 flex justify-center gap-1">
-                    {dayAppointments.length >
-                      0 && (
-                      <span className="size-1.5 rounded-full bg-primary" />
-                    )}
-
-                    {dayBlocks.length >
-                      0 && (
-                      <span className="size-1.5 rounded-full bg-muted-foreground/50" />
-                    )}
-                  </div>
-
-                  <span className="mt-1 block text-[9px] font-semibold text-muted-foreground">
-                    {
-                      dayAppointments.length
-                    }{" "}
-                    at.
-                  </span>
-                </button>
-              );
-            },
-          )}
-        </div>
-
-        <div className="divide-y divide-border">
-          {weekDates.map(
-            (date) => {
-              const dayAppointments =
-                getAppointmentsForDate(
-                  date,
-                );
-
-              const isSelected =
-                date ===
-                selectedDate;
-
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  onClick={() =>
-                    handleSelectDate(
-                      date,
-                    )
-                  }
-                  className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
-                    isSelected
-                      ? "bg-primary/[0.035]"
-                      : "hover:bg-secondary/40"
-                  }`}
-                >
-                  <div
-                    className={`grid size-10 shrink-0 place-items-center rounded-xl ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-muted-foreground"
-                    }`}
-                  >
-                    <span className="text-sm font-bold">
-                      {parseLocalDate(
-                        date,
-                      ).getDate()}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold capitalize">
-                      {parseLocalDate(
-                        date,
-                      ).toLocaleDateString(
-                        "pt-BR",
-                        {
-                          weekday:
-                            "long",
-                          day: "numeric",
-                          month:
-                            "long",
-                        },
-                      )}
-                    </p>
-
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {dayAppointments.length ===
-                      0
-                        ? "Nenhum atendimento"
-                        : `${dayAppointments.length} atendimento(s)`}
-                    </p>
-                  </div>
-
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                </button>
-              );
-            },
-          )}
-        </div>
-      </section>
+    handleChangeWeek(
+      distance < 0 ? 1 : -1,
     );
   }
 
   /*
-   * RENDERIZAÇÃO MÊS
+   * CALENDÁRIO DO MÊS
    */
-  function renderMonthView() {
+  function handleOpenCalendar() {
+    setCalendarMonth(selectedDate);
+    setCalendarOpen(true);
+  }
+
+  function handleChangeCalendarMonth(
+    direction: 1 | -1,
+  ) {
+    const current =
+      parseLocalDate(calendarMonth);
+
+    setCalendarMonth(
+      dateToString(
+        new Date(
+          current.getFullYear(),
+          current.getMonth() +
+            direction,
+          1,
+        ),
+      ),
+    );
+  }
+
+  useEffect(() => {
+    if (!calendarOpen) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadMonthCounts() {
+      const {
+        data: { user },
+      } =
+        await supabase.auth.getUser();
+
+      if (!user) {
+        return;
+      }
+
+      const { data, error: countsError } =
+        await supabase
+          .from("appointments")
+          .select(
+            "appointment_date, status",
+          )
+          .eq("user_id", user.id)
+          .gte(
+            "appointment_date",
+            monthDates[0]!,
+          )
+          .lte(
+            "appointment_date",
+            monthDates[
+              monthDates.length - 1
+            ]!,
+          );
+
+      if (cancelled) {
+        return;
+      }
+
+      if (countsError) {
+        console.error(
+          "Erro ao carregar o mês:",
+          countsError,
+        );
+        return;
+      }
+
+      const counts: Record<
+        string,
+        number
+      > = {};
+
+      for (const row of data ?? []) {
+        if (row.status === "cancelado") {
+          continue;
+        }
+
+        counts[row.appointment_date] =
+          (counts[
+            row.appointment_date
+          ] ?? 0) + 1;
+      }
+
+      setMonthCounts(counts);
+    }
+
+    loadMonthCounts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [calendarOpen, monthDates]);
+
+  /*
+   * FAIXA DA SEMANA
+   */
+  function renderWeekStrip() {
     return (
-      <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
-        <div className="border-b border-border p-4">
-          <h2 className="text-lg font-bold capitalize">
-            {formatMonth(
-              selectedDate,
-            )}
-          </h2>
+      <div
+        className="flex items-center gap-1"
+        onTouchStart={
+          handleWeekTouchStart
+        }
+        onTouchEnd={
+          handleWeekTouchEnd
+        }
+      >
+        <button
+          type="button"
+          onClick={() =>
+            handleChangeWeek(-1)
+          }
+          aria-label="Semana anterior"
+          className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:bg-secondary"
+        >
+          <ChevronLeft className="size-5" />
+        </button>
 
-          <p className="text-xs text-muted-foreground">
-            Toque em um dia para abrir a agenda.
-          </p>
-        </div>
+        <div className="grid min-w-0 flex-1 grid-cols-7 gap-0.5">
+          {weekDates.map((date) => {
+            const isSelected =
+              date === selectedDate;
+            const isToday =
+              date === today;
+            const isPast = date < today;
 
-        <div className="grid grid-cols-7 border-b border-border">
-          {[
-            "Seg",
-            "Ter",
-            "Qua",
-            "Qui",
-            "Sex",
-            "Sáb",
-            "Dom",
-          ].map(
-            (day) => (
-              <div
-                key={day}
-                className="py-2 text-center text-[9px] font-bold uppercase tracking-wider text-muted-foreground"
+            const activeAppointments =
+              getAppointmentsForDate(
+                date,
+              ).filter(
+                (appointment) =>
+                  appointment.status !==
+                  "cancelado",
+              ).length;
+
+            const hasBlocks =
+              agendaBlocks.some(
+                (block) =>
+                  block.appointment_date ===
+                  date,
+              );
+
+            return (
+              <button
+                key={date}
+                type="button"
+                onClick={() =>
+                  handleSelectDate(date)
+                }
+                aria-label={formatLongDate(
+                  date,
+                )}
+                aria-pressed={isSelected}
+                className={`flex min-w-0 flex-col items-center rounded-2xl py-1.5 transition-colors ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "active:bg-secondary"
+                }`}
               >
-                {day}
-              </div>
-            ),
-          )}
-        </div>
-
-        <div className="grid grid-cols-7">
-          {monthDates.map(
-            (date) => {
-              const parsedDate =
-                parseLocalDate(
-                  date,
-                );
-
-              const currentMonth =
-                parseLocalDate(
-                  selectedDate,
-                );
-
-              const isCurrentMonth =
-                parsedDate.getMonth() ===
-                  currentMonth.getMonth() &&
-                parsedDate.getFullYear() ===
-                  currentMonth.getFullYear();
-
-              const isToday =
-                date === today;
-
-              const isSelected =
-                date ===
-                selectedDate;
-
-              const dayAppointments =
-                getAppointmentsForDate(
-                  date,
-                );
-
-              const dayBlocks =
-                agendaBlocks.filter(
-                  (block) =>
-                    block.appointment_date ===
-                    date,
-                );
-
-              const isPast =
-                date < today;
-
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  disabled={isPast}
-                  onClick={() =>
-                    handleSelectDate(
-                      date,
-                    )
-                  }
-                  className={`relative min-h-[76px] border-b border-r border-border p-2 text-left transition-colors ${
-                    isPast
-                      ? "cursor-default opacity-40"
-                      : "hover:bg-secondary/50"
-                  } ${
+                <span
+                  className={`text-[10px] font-bold uppercase ${
                     isSelected
-                      ? "bg-primary/[0.06]"
-                      : ""
+                      ? "text-primary-foreground/80"
+                      : isPast
+                        ? "text-muted-foreground/50"
+                        : "text-muted-foreground"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-1">
+                  {formatWeekDay(date)
+                    .replace(".", "")
+                    .slice(0, 3)}
+                </span>
+
+                <span
+                  className={`mt-0.5 text-base font-bold leading-6 ${
+                    isSelected
+                      ? ""
+                      : isToday
+                        ? "text-primary"
+                        : isPast
+                          ? "text-muted-foreground/60"
+                          : "text-foreground"
+                  }`}
+                >
+                  {parseLocalDate(
+                    date,
+                  ).getDate()}
+                </span>
+
+                <span className="mt-0.5 flex h-1.5 items-center gap-0.5">
+                  {activeAppointments >
+                    0 && (
                     <span
-                      className={`grid size-7 place-items-center rounded-full text-xs font-bold ${
-                        isToday
+                      className={`size-1.5 rounded-full ${
+                        isSelected
+                          ? "bg-primary-foreground"
+                          : "bg-primary"
+                      }`}
+                    />
+                  )}
+
+                  {hasBlocks && (
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        isSelected
+                          ? "bg-primary-foreground/60"
+                          : "bg-muted-foreground/50"
+                      }`}
+                    />
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            handleChangeWeek(1)
+          }
+          aria-label="Próxima semana"
+          className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:bg-secondary"
+        >
+          <ChevronRight className="size-5" />
+        </button>
+      </div>
+    );
+  }
+
+  /*
+   * CALENDÁRIO DO MÊS (bottom sheet)
+   */
+  function renderMonthSheet() {
+    const visibleMonth =
+      parseLocalDate(calendarMonth);
+
+    return (
+      <Drawer
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+      >
+        <DrawerContent className="mx-auto max-w-lg">
+          <DrawerHeader className="flex items-center justify-between gap-2 text-left">
+            <button
+              type="button"
+              onClick={() =>
+                handleChangeCalendarMonth(
+                  -1,
+                )
+              }
+              aria-label="Mês anterior"
+              className="grid size-10 shrink-0 place-items-center rounded-xl text-muted-foreground active:bg-secondary"
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+
+            <div className="min-w-0 text-center">
+              <DrawerTitle className="capitalize">
+                {formatMonth(
+                  calendarMonth,
+                )}
+              </DrawerTitle>
+
+              <DrawerDescription className="text-xs">
+                Escolha um dia
+              </DrawerDescription>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleChangeCalendarMonth(
+                  1,
+                )
+              }
+              aria-label="Próximo mês"
+              className="grid size-10 shrink-0 place-items-center rounded-xl text-muted-foreground active:bg-secondary"
+            >
+              <ChevronRight className="size-5" />
+            </button>
+          </DrawerHeader>
+
+          <div className="px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="grid grid-cols-7 pb-1">
+              {[
+                "S",
+                "T",
+                "Q",
+                "Q",
+                "S",
+                "S",
+                "D",
+              ].map((day, index) => (
+                <span
+                  key={`${day}-${index}`}
+                  className="text-center text-[11px] font-bold text-muted-foreground"
+                >
+                  {day}
+                </span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-y-1">
+              {monthDates.map((date) => {
+                const parsedDate =
+                  parseLocalDate(date);
+
+                const isCurrentMonth =
+                  parsedDate.getMonth() ===
+                  visibleMonth.getMonth();
+
+                const isSelected =
+                  date === selectedDate;
+                const isToday =
+                  date === today;
+                const count =
+                  monthCounts[date] ?? 0;
+
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => {
+                      handleSelectDate(date);
+                      setCalendarOpen(false);
+                    }}
+                    className="flex h-12 flex-col items-center justify-center rounded-xl active:bg-secondary"
+                  >
+                    <span
+                      className={`grid size-8 place-items-center rounded-full text-sm font-semibold ${
+                        isSelected
                           ? "bg-primary text-primary-foreground"
-                          : isSelected
-                            ? "bg-primary/15 text-primary"
+                          : isToday
+                            ? "text-primary ring-1 ring-primary"
                             : isCurrentMonth
-                              ? "text-foreground"
-                              : "text-muted-foreground/40"
+                              ? date < today
+                                ? "text-muted-foreground"
+                                : "text-foreground"
+                              : "text-muted-foreground/35"
                       }`}
                     >
                       {parsedDate.getDate()}
                     </span>
 
-                    {dayAppointments.length >
-                      0 && (
-                      <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] font-bold text-primary">
-                        {dayAppointments.length}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-2 space-y-1">
-                    {dayAppointments
-                      .slice(
-                        0,
-                        2,
-                      )
-                      .map(
-                        (
-                          appointment,
-                        ) => (
-                          <div
-                            key={
-                              appointment.id
-                            }
-                            className={`truncate rounded-md px-1.5 py-1 text-[8px] font-semibold ${
-                              appointment.status ===
-                              "cancelado"
-                                ? "bg-destructive/10 text-destructive"
-                                : appointment.status ===
-                                    "concluido"
-                                  ? "bg-emerald-500/10 text-emerald-600"
-                                  : "bg-primary/10 text-primary"
-                            }`}
-                          >
-                            {normalizeTime(
-                              appointment.appointment_time,
-                            )}{" "}
-                            ·{" "}
-                            {appointment
-                              .client
-                              ?.name ??
-                              "Cliente"}
-                          </div>
-                        ),
-                      )}
-
-                    {dayAppointments.length >
-                      2 && (
-                      <p className="px-1 text-[8px] font-semibold text-muted-foreground">
-                        +
-                        {dayAppointments.length -
-                          2}{" "}
-                        mais
-                      </p>
-                    )}
-
-                    {dayBlocks.length >
-                      0 && (
-                      <div className="flex items-center gap-1 text-[8px] font-semibold text-muted-foreground">
-                        <Lock className="size-2.5" />
-                        {dayBlocks.length}{" "}
-                        fechado(s)
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            },
-          )}
-        </div>
-      </section>
+                    <span
+                      className={`mt-0.5 size-1.5 rounded-full ${
+                        count > 0 &&
+                        isCurrentMonth
+                          ? "bg-primary"
+                          : "bg-transparent"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
     );
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col overflow-hidden px-5 pb-28 pt-8 md:max-w-2xl lg:max-w-3xl">
-      <PageHeader
-        title="Agenda"
-        subtitle={formatLongDate(
-          selectedDate,
-        )}
-      />
-
-      {/* CONTROLES PRINCIPAIS */}
-      <section className="mb-5 rounded-3xl border border-border bg-card p-4 shadow-card">
-        {/* Abas */}
-        <div className="mb-4 flex rounded-2xl bg-secondary/70 p-1">
-          {views.map(
-            (view) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() =>
-                  handleChangeView(
-                    view,
-                  )
-                }
-                className={`flex-1 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                  activeView ===
-                  view
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {view}
-              </button>
-            ),
-          )}
-        </div>
-
-        {/* Navegação */}
+    /*
+     * Tela fixa: só a lista de horários rola. O padding
+     * inferior reserva o espaço da BottomNav.
+     */
+    <div className="fixed inset-0 mx-auto flex w-full max-w-lg flex-col overflow-hidden px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] md:max-w-2xl lg:max-w-3xl">
+      {/* CABEÇALHO */}
+      <header className="shrink-0">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={
-              handlePreviousPeriod
-            }
-            disabled={
-              activeView ===
-                "Dia" &&
-              selectedDate <=
-                today
-            }
-            aria-label="Período anterior"
-            className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-background text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary disabled:pointer-events-none disabled:opacity-30"
-          >
-            <ChevronLeft className="size-5" />
-          </button>
-
-          <div className="min-w-0 flex-1 text-center">
-            {activeView ===
-              "Dia" && (
-              <>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Data selecionada
-                </p>
-
-                <p className="mt-0.5 truncate text-sm font-bold capitalize">
-                  {formatLongDate(
-                    selectedDate,
-                  )}
-                </p>
-              </>
-            )}
-
-            {activeView ===
-              "Semana" && (
-              <>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Semana
-                </p>
-
-                <p className="mt-0.5 truncate text-sm font-bold">
-                  {formatDate(
-                    weekDates[0],
-                  )}{" "}
-                  —{" "}
-                  {formatDate(
-                    weekDates[6],
-                  )}
-                </p>
-              </>
-            )}
-
-            {activeView ===
-              "Mês" && (
-              <>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Mês
-                </p>
-
-                <p className="mt-0.5 truncate text-sm font-bold capitalize">
-                  {formatMonth(
-                    selectedDate,
-                  )}
-                </p>
-              </>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={
-              handleNextPeriod
-            }
-            aria-label="Próximo período"
-            className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-background text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-          >
-            <ChevronRight className="size-5" />
-          </button>
-        </div>
-
-        {/* Date picker */}
-        <div className="mt-3 flex items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft">
-            <CalendarDays className="size-5 text-primary" />
-          </div>
-
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Selecionar data
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Agenda
+            </h1>
 
-            <p className="mt-0.5 font-bold">
-              {formatDate(
+            <p className="truncate text-sm capitalize text-muted-foreground">
+              {formatLongDate(
                 selectedDate,
               )}
             </p>
           </div>
 
-          <input
-            type="date"
-            value={
-              selectedDate
-            }
-            min={today}
-            onChange={(
-              event,
-            ) => {
-              handleSelectDate(
-                event.target
-                  .value,
-              );
-            }}
-            className="max-w-[140px] rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium outline-none focus:border-primary"
-          />
+          {selectedDate !== today && (
+            <button
+              type="button"
+              onClick={handleGoToToday}
+              className="h-9 shrink-0 rounded-xl border border-border bg-card px-3 text-xs font-bold text-primary active:scale-95"
+            >
+              Hoje
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleOpenCalendar}
+            aria-label="Abrir calendário do mês"
+            className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary active:scale-95"
+          >
+            <CalendarDays className="size-5" />
+          </button>
         </div>
-      </section>
 
-      {/* DIA */}
-      {activeView ===
-        "Dia" && (
-        <>
-          {loading ? (
-            <section className="card-surface p-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                Carregando agenda...
-              </p>
-            </section>
-          ) : error ? (
-            <section className="card-surface p-8 text-center">
-              <p className="text-sm font-medium text-destructive">
-                {error}
-              </p>
-            </section>
-          ) : (
-            <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-card">
-              <div className="flex items-center justify-between border-b border-border p-4">
-                <div>
-                  <h2 className="text-lg font-bold">
-                    Horários
-                  </h2>
+        <div className="mt-3">
+          {renderWeekStrip()}
+        </div>
+      </header>
 
-                  <p className="text-xs text-muted-foreground">
-                    Toque para selecionar · toque duas vezes para agendar
-                  </p>
-                </div>
+      {/* HORÁRIOS DO DIA */}
+            <section className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-card">
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <p className="min-w-0 truncate text-xs text-muted-foreground">
+                  {error ? (
+                    <span className="font-medium text-destructive">
+                      {error}
+                    </span>
+                  ) : isPastDate ? (
+                    "Dia passado · somente consulta"
+                  ) : (
+                    "Toque para selecionar · 2 toques para agendar"
+                  )}
+                </p>
 
-                {selectedDate ===
-                  today && (
-                  <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[10px] font-bold text-primary">
-                    <span className="size-2 animate-pulse rounded-full bg-primary" />
-                    Agora
-                  </div>
+                {loading ? (
+                  <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
+                    Carregando...
+                  </span>
+                ) : (
+                  selectedDate ===
+                    today && (
+                    <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
+                      <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+                      Agora
+                    </span>
+                  )
                 )}
               </div>
 
-              {blocksForSelectedDate.length >
+              {!isPastDate &&
+                blocksForSelectedDate.length >
                 0 && (
                 <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-4 py-2.5">
                   <span className="text-xs font-semibold text-muted-foreground">
@@ -2927,13 +2595,7 @@ function Agenda() {
                 ref={
                   agendaScrollRef
                 }
-                style={{
-                  height:
-                    agendaHeight
-                      ? `${agendaHeight}px`
-                      : undefined,
-                }}
-                className="min-h-[240px] overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
               >
                 <div className="pb-8">
                   <div className="relative grid grid-cols-[4rem_minmax(0,1fr)]">
@@ -3037,7 +2699,8 @@ function Agenda() {
                               }
                               type="button"
                               disabled={
-                                !isAvailable
+                                !isAvailable ||
+                                isPastDate
                               }
                               onClick={() =>
                                 handleSlotInteraction(
@@ -3058,11 +2721,13 @@ function Agenda() {
                               aria-label={`Horário ${slot}`}
                             >
                               {isAvailable &&
+                                !isPastDate &&
                                 !isSelected && (
                                   <span className="pointer-events-none absolute inset-x-4 top-1/2 h-px -translate-y-1/2 bg-border/50 transition-all duration-200 group-hover:inset-x-2 group-hover:bg-primary/25" />
                                 )}
 
-                              {isAvailable && (
+                              {isAvailable &&
+                                !isPastDate && (
                                 <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-secondary px-2 py-1 text-[9px] font-semibold text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                                   toque
                                 </span>
@@ -3215,6 +2880,9 @@ function Agenda() {
                             <button
                               key={`blocked-${group.join("-")}`}
                               type="button"
+                              disabled={
+                                isPastDate
+                              }
                               onClick={() => {
                                 const groupBlocks =
                                   blocksForSelectedDate.filter(
@@ -3587,47 +3255,8 @@ function Agenda() {
                 </div>
               </div>
             </section>
-          )}
-        </>
-      )}
 
-      {/* SEMANA */}
-      {activeView ===
-        "Semana" &&
-        (loading ? (
-          <section className="card-surface p-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              Carregando semana...
-            </p>
-          </section>
-        ) : error ? (
-          <section className="card-surface p-8 text-center">
-            <p className="text-sm font-medium text-destructive">
-              {error}
-            </p>
-          </section>
-        ) : (
-          renderWeekView()
-        ))}
-
-      {/* MÊS */}
-      {activeView ===
-        "Mês" &&
-        (loading ? (
-          <section className="card-surface p-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              Carregando mês...
-            </p>
-          </section>
-        ) : error ? (
-          <section className="card-surface p-8 text-center">
-            <p className="text-sm font-medium text-destructive">
-              {error}
-            </p>
-          </section>
-        ) : (
-          renderMonthView()
-        ))}
+      {renderMonthSheet()}
 
       {/* MODAL DO ATENDIMENTO */}
       {selectedAppointment && (
@@ -3796,6 +3425,11 @@ function Agenda() {
       {/* NOVO ATENDIMENTO */}
       <Link
         to="/atendimento/novo"
+        search={
+          isPastDate
+            ? {}
+            : { date: selectedDate }
+        }
         aria-label="Novo atendimento"
         className={`
           fixed bottom-24 left-1/2 z-[90]
@@ -3805,7 +3439,8 @@ function Agenda() {
           shadow-float
           transition-all duration-300 ease-out
           ${
-            showFloatingButton
+            showFloatingButton &&
+            !isPastDate
               ? "pointer-events-auto scale-100 opacity-100"
               : "pointer-events-none scale-75 opacity-0"
           }
