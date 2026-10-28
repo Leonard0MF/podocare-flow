@@ -1298,7 +1298,7 @@ function Agenda() {
     if (
       lastTap &&
       lastTap.slot === slot &&
-      now - lastTap.time <= 350
+      now - lastTap.time <= 450
     ) {
       lastTapRef.current = null;
 
@@ -1324,7 +1324,7 @@ function Agenda() {
         lastTapRef.current =
           null;
       }
-    }, 360);
+    }, 460);
 
     setSelectedSlots(
       (current) =>
@@ -1341,37 +1341,6 @@ function Agenda() {
                 timeToMinutes(a) -
                 timeToMinutes(b),
             ),
-    );
-  }
-
-  function handleToggleSelectedGroup(
-    group: string[],
-  ) {
-    setSelectedSlots(
-      (current) => {
-        const everySelected =
-          group.every((slot) =>
-            current.includes(slot),
-          );
-
-        if (everySelected) {
-          return current.filter(
-            (slot) =>
-              !group.includes(slot),
-          );
-        }
-
-        return [
-          ...new Set([
-            ...current,
-            ...group,
-          ]),
-        ].sort(
-          (a, b) =>
-            timeToMinutes(a) -
-            timeToMinutes(b),
-        );
-      },
     );
   }
 
@@ -2474,7 +2443,7 @@ function Agenda() {
       </header>
 
       {/* HORÁRIOS DO DIA */}
-            <section className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-card">
+            <section className="relative mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-card">
               <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2.5">
                 <p className="min-w-0 truncate text-xs text-muted-foreground">
                   {error ? (
@@ -2529,7 +2498,7 @@ function Agenda() {
 
               {selectedSlots.length >
                 0 && (
-                <div className="animate-toolbar-in border-b border-border bg-primary/[0.035] p-3">
+                <div className="animate-toolbar-in absolute inset-x-3 bottom-3 z-30 rounded-2xl border border-border bg-card/95 p-3 shadow-float backdrop-blur">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="mr-auto">
                       <p className="text-xs font-bold text-foreground">
@@ -2597,7 +2566,13 @@ function Agenda() {
                 }
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
               >
-                <div className="pb-8">
+                <div
+                  className={
+                    selectedSlots.length > 0
+                      ? "pb-28"
+                      : "pb-8"
+                  }
+                >
                   <div className="relative grid grid-cols-[4rem_minmax(0,1fr)]">
                     {/* HORÁRIOS */}
                     <div className="relative">
@@ -2707,7 +2682,7 @@ function Agenda() {
                                   slot,
                                 )
                               }
-                              className={`group relative block h-14 w-full border-b border-border/60 text-left transition-colors ${
+                              className={`group relative block h-14 w-full touch-manipulation select-none border-b border-border/60 text-left transition-colors ${
                                 isSelected
                                   ? "bg-primary/[0.025]"
                                   : isCurrentSlot
@@ -2779,15 +2754,14 @@ function Agenda() {
                             );
 
                           return (
-                            <button
+                            /*
+                             * Só visual: o toque passa para o horário
+                             * embaixo, que trata seleção e toque duplo.
+                             */
+                            <div
                               key={`selected-${group.join("-")}`}
-                              type="button"
-                              onClick={() =>
-                                handleToggleSelectedGroup(
-                                  group,
-                                )
-                              }
-                              className="animate-[pulse_320ms_ease-out_1] absolute left-2 right-2 z-20 overflow-hidden rounded-2xl border border-primary/20 bg-primary/10 p-3 text-left shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-primary/15 hover:shadow-md active:scale-[0.985]"
+                              aria-hidden="true"
+                              className="pointer-events-none absolute left-2 right-2 z-20 overflow-hidden rounded-2xl border border-primary/20 bg-primary/10 p-3 text-left shadow-sm"
                               style={{
                                 top,
                                 height,
@@ -2814,7 +2788,7 @@ function Agenda() {
                                   </p>
                                 </div>
                               </div>
-                            </button>
+                            </div>
                           );
                         },
                       )}
@@ -3440,7 +3414,8 @@ function Agenda() {
           transition-all duration-300 ease-out
           ${
             showFloatingButton &&
-            !isPastDate
+            !isPastDate &&
+            selectedSlots.length === 0
               ? "pointer-events-auto scale-100 opacity-100"
               : "pointer-events-none scale-75 opacity-0"
           }
