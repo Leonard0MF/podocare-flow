@@ -16,6 +16,28 @@ import { supabase } from "@/lib/supabase";
 import { notifyAppointmentCreated } from "@/lib/notifications";
 
 export const Route = createFileRoute("/atendimento/novo")({
+  /*
+   * A Agenda abre esta tela com ?date=YYYY-MM-DD&time=HH:MM
+   * (toque duplo num horário ou botão "+").
+   */
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    date?: string | undefined;
+    time?: string | undefined;
+  } => ({
+    date:
+      typeof search["date"] === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(search["date"])
+        ? search["date"]
+        : undefined,
+    time:
+      typeof search["time"] === "string" &&
+      /^\d{2}:\d{2}$/.test(search["time"])
+        ? search["time"]
+        : undefined,
+  }),
+
   head: () => ({
     meta: [
       { title: "Novo atendimento — Podocare" },
@@ -269,31 +291,30 @@ function NovoAtendimento() {
   const [serviceSearchOpen, setServiceSearchOpen] =
     useState(false);
 
-  const [date, setDate] = useState(today);
-  const [time, setTime] = useState("");
+  const search = Route.useSearch();
+
+  const [date, setDate] = useState(
+    search.date && search.date >= today
+      ? search.date
+      : today,
+  );
+
+  /*
+   * Horário escolhido na Agenda. Fica selecionado e é
+   * mantido ao escolher o serviço, desde que caiba nele.
+   */
+  const [requestedTime, setRequestedTime] =
+    useState(search.time ?? "");
+
+  const [time, setTime] = useState(
+    search.time ?? "",
+  );
   const [payment, setPayment] = useState(
     "Não informado",
   );
   const [notes, setNotes] = useState("");
 
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const params = new URLSearchParams(
-      window.location.search,
-    );
-
-    const initialDate = params.get("date");
-    const initialTime = params.get("time");
-
-    if (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
-      setDate(initialDate);
-    }
-
-    if (initialTime && /^\d{2}:\d{2}$/.test(initialTime)) {
-      setTime(initialTime);
-    }
-  }, []);
 
   const clientSearchRef =
     useRef<HTMLDivElement>(null);
@@ -526,12 +547,14 @@ function NovoAtendimento() {
     if (value < today) {
       setDate(today);
       setTime("");
+      setRequestedTime("");
       setError("");
       return;
     }
 
     setDate(value);
     setTime("");
+    setRequestedTime("");
     setError("");
   }
 
@@ -545,6 +568,8 @@ function NovoAtendimento() {
   }
 
   function validateAndSetManualTime(value: string) {
+    setRequestedTime("");
+
     if (!value) {
       setTime("");
       setError("");
@@ -600,7 +625,7 @@ function NovoAtendimento() {
 
   function handleServiceChange(value: string) {
     setServiceId(value);
-    setTime("");
+    setTime(requestedTime);
     setError("");
   }
 
@@ -629,7 +654,7 @@ function NovoAtendimento() {
     setServiceId("");
     setServiceSearch("");
     setServiceSearchOpen(false);
-    setTime("");
+    setTime(requestedTime);
     setError("");
   }
 
@@ -821,6 +846,31 @@ function NovoAtendimento() {
     today,
   ]);
 
+  useEffect(() => {
+    if (
+      !requestedTime ||
+      time !== requestedTime ||
+      !selectedService ||
+      loadingAppointments
+    ) {
+      return;
+    }
+
+    if (!availableTimeSlots.includes(requestedTime)) {
+      setTime("");
+      setRequestedTime("");
+      setError(
+        `O horário ${requestedTime} não está livre para "${selectedService.name}". Escolha outro horário.`,
+      );
+    }
+  }, [
+    requestedTime,
+    time,
+    selectedService,
+    loadingAppointments,
+    availableTimeSlots,
+  ]);
+
   const occupiedTimeSlots = useMemo(() => {
     const occupied = new Set<string>();
 
@@ -933,6 +983,7 @@ function NovoAtendimento() {
     }
 
     setTime(slot);
+    setRequestedTime("");
     setError("");
   }
 
@@ -1457,7 +1508,7 @@ function NovoAtendimento() {
                       );
                       setServiceId("");
                       setServiceSearchOpen(true);
-                      setTime("");
+                      setTime(requestedTime);
                       setError("");
                     }}
                     onFocus={() =>
@@ -1758,6 +1809,7 @@ function NovoAtendimento() {
                           type="button"
                           onClick={() => {
                             setTime("");
+                            setRequestedTime("");
                             setError("");
                           }}
                           className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-primary"

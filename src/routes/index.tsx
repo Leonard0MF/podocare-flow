@@ -4,13 +4,7 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
-import {
-  CalendarDays,
-  Clock,
-  Plus,
-  Sun,
-  UserRound,
-} from "lucide-react";
+import { Plus, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
@@ -58,6 +52,7 @@ type Appointment = {
   service: {
     name: string;
     duration: number;
+    price: number;
   } | null;
 };
 
@@ -101,6 +96,31 @@ function getCurrentTimeInMinutes() {
   const date = new Date();
 
   return date.getHours() * 60 + date.getMinutes();
+}
+
+function formatPrice(value: number) {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 0,
+  });
+}
+
+function formatTimeUntil(minutes: number) {
+  if (minutes <= 0) {
+    return "agora";
+  }
+
+  if (minutes < 60) {
+    return `em ${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  return rest
+    ? `em ${hours}h${String(rest).padStart(2, "0")}`
+    : `em ${hours}h`;
 }
 
 function getGreeting() {
@@ -158,6 +178,18 @@ function Home() {
   const [error, setError] = useState("");
 
   const today = useMemo(() => getToday(), []);
+
+  const [currentMinutes, setCurrentMinutes] = useState(
+    getCurrentTimeInMinutes(),
+  );
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setCurrentMinutes(getCurrentTimeInMinutes());
+    }, 30_000);
+
+    return () => window.clearInterval(interval);
+  }, []);
   const greeting = getGreeting();
 
   useEffect(() => {
@@ -207,7 +239,8 @@ function Home() {
           ),
           service:services (
             name,
-            duration
+            duration,
+            price
           )
         `)
         .eq("user_id", user.id)
@@ -262,10 +295,9 @@ function Home() {
       appointment.status !== "faltou",
   );
 
-  const currentMinutes = getCurrentTimeInMinutes();
-
   const nextAppointment = activeAppointments.find(
     (appointment) =>
+      appointment.status !== "concluido" &&
       timeToMinutes(
         normalizeTime(
           appointment.appointment_time,
@@ -273,17 +305,26 @@ function Home() {
       ) >= currentMinutes,
   );
 
-  const hasAppointments = appointments.length > 0;
+  const remainingCount = activeAppointments.filter(
+    (appointment) =>
+      appointment.status !== "concluido" &&
+      timeToMinutes(
+        normalizeTime(
+          appointment.appointment_time,
+        ),
+      ) >= currentMinutes,
+  ).length;
+
+  const expectedRevenue = activeAppointments.reduce(
+    (total, appointment) =>
+      total + (Number(appointment.service?.price) || 0),
+    0,
+  );
 
   return (
     <Screen>
-      <div className="mx-auto w-full max-w-lg min-w-0 px-4 pb-28">
-        <header className="mb-7">
-          <div className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">
-            <Sun className="size-3.5 shrink-0" />
-            <span>Podocare</span>
-          </div>
-
+      <div className="w-full min-w-0 pb-24">
+        <header className="mb-5">
           <h1 className="break-words text-2xl font-bold tracking-tight">
             {greeting}, {name}
           </h1>
@@ -293,115 +334,41 @@ function Home() {
           </p>
         </header>
 
-        {loadingAppointments ? (
-          <section className="card-surface mb-8 p-5 text-center sm:p-6">
-            <p className="text-sm text-muted-foreground">
-              Carregando seus atendimentos...
-            </p>
-          </section>
-        ) : error ? (
-          <section className="card-surface mb-8 p-5 text-center sm:p-6">
-            <p className="text-sm font-medium text-destructive">
-              {error}
-            </p>
-          </section>
-        ) : !hasAppointments ? (
-          <section className="card-surface mb-8 p-5 text-center sm:p-6">
-            <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-primary-soft">
-              <Sun className="size-6 text-primary" />
-            </div>
+        {/* RESUMO DO DIA */}
+        <section className="mb-6 grid grid-cols-3 gap-2">
+          <SummaryTile
+            label="Hoje"
+            value={
+              loadingAppointments
+                ? "–"
+                : String(activeAppointments.length)
+            }
+          />
 
-            <h2 className="text-lg font-semibold">
-              Nenhum atendimento hoje
-            </h2>
+          <SummaryTile
+            label="Restantes"
+            value={
+              loadingAppointments
+                ? "–"
+                : String(remainingCount)
+            }
+          />
 
-            <p className="mt-2 text-sm text-muted-foreground">
-              Sua agenda está livre por enquanto.
-            </p>
-          </section>
-        ) : nextAppointment ? (
-          <section className="card-surface mb-8 overflow-hidden">
-            <div className="border-b border-border p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-wider text-primary">
-                    Próximo atendimento
-                  </p>
+          <SummaryTile
+            label="Previsto"
+            value={
+              loadingAppointments
+                ? "–"
+                : formatPrice(expectedRevenue)
+            }
+          />
+        </section>
 
-                  <h2 className="mt-1 text-xl font-bold">
-                    {normalizeTime(
-                      nextAppointment.appointment_time,
-                    )}
-                  </h2>
-                </div>
-
-                <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary-soft">
-                  <Clock className="size-5 text-primary" />
-                </div>
-              </div>
-            </div>
-
-            <div className="p-5">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-secondary">
-                  <UserRound className="size-5 text-primary" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold">
-                    {nextAppointment.client?.name ??
-                      "Cliente"}
-                  </p>
-
-                  <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                    {nextAppointment.service?.name ??
-                      "Serviço"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex min-w-0 flex-wrap gap-2">
-                {nextAppointment.service && (
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold">
-                    <Clock className="size-3.5 shrink-0 text-primary" />
-                    {nextAppointment.service.duration}{" "}
-                    min
-                  </span>
-                )}
-
-                <span
-                  className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold ${getStatusClass(
-                    nextAppointment.status,
-                  )}`}
-                >
-                  {getStatusLabel(
-                    nextAppointment.status,
-                  )}
-                </span>
-              </div>
-            </div>
-          </section>
-        ) : (
-          <section className="card-surface mb-8 p-5 text-center sm:p-6">
-            <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-primary-soft">
-              <Sun className="size-6 text-primary" />
-            </div>
-
-            <h2 className="text-lg font-semibold">
-              Atendimentos de hoje concluídos
-            </h2>
-
-            <p className="mt-2 text-sm text-muted-foreground">
-              Você não possui mais atendimentos
-              pela frente hoje.
-            </p>
-          </section>
-        )}
-
-        <section className="mb-8 min-w-0">
+        {/* AGENDA DE HOJE */}
+        <section className="min-w-0">
           <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
             <h2 className="min-w-0 text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              Atendimentos de hoje
+              Agenda de hoje
             </h2>
 
             <Link
@@ -413,57 +380,118 @@ function Home() {
           </div>
 
           {loadingAppointments ? (
-            <div className="card-surface p-5 text-center sm:p-6">
+            <div className="card-surface p-5 text-center">
               <p className="text-sm text-muted-foreground">
-                Carregando...
+                Carregando seus atendimentos...
+              </p>
+            </div>
+          ) : error ? (
+            <div className="card-surface p-5 text-center">
+              <p className="text-sm font-medium text-destructive">
+                {error}
               </p>
             </div>
           ) : appointments.length === 0 ? (
-            <div className="card-surface p-5 text-center sm:p-6">
-              <CalendarDays className="mx-auto mb-3 size-6 text-muted-foreground" />
+            <div className="card-surface p-6 text-center">
+              <div className="mx-auto mb-3 grid size-12 place-items-center rounded-full bg-primary-soft">
+                <Sun className="size-5 text-primary" />
+              </div>
 
-              <p className="text-sm text-muted-foreground">
-                Você ainda não possui atendimentos
-                para hoje.
+              <p className="font-semibold">
+                Nenhum atendimento hoje
+              </p>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sua agenda está livre por enquanto.
               </p>
             </div>
           ) : (
             <div className="min-w-0 space-y-2">
-              {appointments
-                .slice(0, 5)
-                .map((appointment) => (
-                  <div
+              {!nextAppointment && (
+                <p className="rounded-2xl bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                  Você não tem mais atendimentos pela
+                  frente hoje.
+                </p>
+              )}
+
+              {appointments.map((appointment) => {
+                const isNext =
+                  appointment.id === nextAppointment?.id;
+
+                const startMinutes = timeToMinutes(
+                  normalizeTime(
+                    appointment.appointment_time,
+                  ),
+                );
+
+                const isDone =
+                  appointment.status === "concluido" ||
+                  appointment.status === "cancelado" ||
+                  appointment.status === "faltou" ||
+                  (!isNext &&
+                    startMinutes < currentMinutes);
+
+                return (
+                  <Link
                     key={appointment.id}
-                    className="card-surface flex min-w-0 items-center gap-2.5 p-3 sm:gap-3 sm:p-4"
+                    to="/agenda"
+                    className={`flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition-colors active:scale-[0.99] ${
+                      isNext
+                        ? "border-primary/30 bg-primary/[0.06] shadow-card"
+                        : "border-border bg-card"
+                    } ${isDone ? "opacity-60" : ""}`}
                   >
-                    <div className="w-11 shrink-0 text-center sm:w-12">
-                      <p className="text-sm font-bold text-primary">
+                    <div className="w-12 shrink-0 text-center">
+                      <p
+                        className={`text-sm font-bold ${
+                          isNext
+                            ? "text-primary"
+                            : "text-foreground"
+                        }`}
+                      >
                         {normalizeTime(
                           appointment.appointment_time,
                         )}
                       </p>
+
+                      {appointment.service?.duration ? (
+                        <p className="text-[10px] font-medium text-muted-foreground">
+                          {appointment.service.duration} min
+                        </p>
+                      ) : null}
                     </div>
 
-                    <div className="h-10 w-px shrink-0 bg-border" />
-
-                    <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary sm:size-10">
-                      <UserRound className="size-4 text-primary" />
-                    </div>
+                    <div className="h-9 w-px shrink-0 bg-border" />
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold">
+                      {isNext && (
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                          Próximo ·{" "}
+                          {formatTimeUntil(
+                            startMinutes - currentMinutes,
+                          )}
+                        </p>
+                      )}
+
+                      <p
+                        className={`truncate text-sm font-bold ${
+                          appointment.status === "cancelado"
+                            ? "line-through"
+                            : ""
+                        }`}
+                      >
                         {appointment.client?.name ??
                           "Cliente"}
                       </p>
 
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         {appointment.service?.name ??
                           "Serviço"}
                       </p>
                     </div>
 
                     <span
-                      className={`max-w-[92px] shrink-0 truncate rounded-lg px-2 py-1 text-[10px] font-bold sm:max-w-none ${getStatusClass(
+                      className={`max-w-[92px] shrink-0 truncate rounded-lg px-2 py-1 text-[10px] font-bold ${getStatusClass(
                         appointment.status,
                       )}`}
                     >
@@ -471,18 +499,9 @@ function Home() {
                         appointment.status,
                       )}
                     </span>
-                  </div>
-                ))}
-
-              {appointments.length > 5 && (
-                <Link
-                  to="/agenda"
-                  className="flex min-h-11 items-center justify-center rounded-2xl bg-secondary text-sm font-semibold text-primary"
-                >
-                  Ver todos os {appointments.length}{" "}
-                  atendimentos
-                </Link>
-              )}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </section>
@@ -497,5 +516,25 @@ function Home() {
         <span>Novo atendimento</span>
       </Link>
     </Screen>
+  );
+}
+
+function SummaryTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="card-surface min-w-0 p-3">
+      <p className="truncate text-[11px] font-semibold text-muted-foreground">
+        {label}
+      </p>
+
+      <p className="mt-1 truncate text-lg font-bold tracking-tight">
+        {value}
+      </p>
+    </div>
   );
 }

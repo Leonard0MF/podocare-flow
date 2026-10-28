@@ -1,4 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+} from "@tanstack/react-router";
 import {
   CalendarDays,
   CheckCircle2,
@@ -406,6 +410,8 @@ function formatMonth(
 }
 
 function Agenda() {
+  const navigate = useNavigate();
+
   const [
     appointments,
     setAppointments,
@@ -1264,15 +1270,13 @@ function Agenda() {
       return;
     }
 
-    const params =
-      new URLSearchParams({
+    navigate({
+      to: "/atendimento/novo",
+      search: {
         date: selectedDate,
         time: slot,
-      });
-
-    window.location.assign(
-      `/atendimento/novo?${params.toString()}`,
-    );
+      },
+    });
   }
 
   function handleSlotInteraction(
@@ -2444,31 +2448,87 @@ function Agenda() {
 
       {/* HORÁRIOS DO DIA */}
             <section className="relative mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-card">
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-                <p className="min-w-0 truncate text-xs text-muted-foreground">
-                  {error ? (
-                    <span className="font-medium text-destructive">
-                      {error}
-                    </span>
-                  ) : isPastDate ? (
-                    "Dia passado · somente consulta"
-                  ) : (
-                    "Toque para selecionar · 2 toques para agendar"
-                  )}
-                </p>
+              {/*
+               * Barra de altura fixa: mostra a dica ou, com
+               * horários selecionados, as ações. Trocar o
+               * conteúdo não mexe na posição da lista.
+               */}
+              <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
+                {selectedSlots.length > 0 ? (
+                  <>
+                    <p className="mr-auto min-w-0 truncate text-xs font-bold text-foreground">
+                      {selectedSlots.length ===
+                      1
+                        ? selectedSlots[0]
+                        : `${selectedSlots.length} horários`}
+                    </p>
 
-                {loading ? (
-                  <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
-                    Carregando...
-                  </span>
+                    {selectedSlots.length ===
+                      1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleNewAppointmentAtSlot(
+                            selectedSlots[0]!,
+                          )
+                        }
+                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground shadow-sm active:scale-95"
+                      >
+                        <Plus className="size-3.5" />
+                        Agendar
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={
+                        handleBlockSelectedSlots
+                      }
+                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-secondary px-3 text-xs font-bold text-foreground active:scale-95"
+                    >
+                      <Lock className="size-3.5" />
+                      Trancar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedSlots([])
+                      }
+                      aria-label="Limpar seleção"
+                      className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:bg-secondary"
+                    >
+                      <XCircle className="size-4" />
+                    </button>
+                  </>
                 ) : (
-                  selectedDate ===
-                    today && (
-                    <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
-                      <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-                      Agora
-                    </span>
-                  )
+                  <>
+                    <p className="mr-auto min-w-0 truncate pl-1 text-xs text-muted-foreground">
+                      {error ? (
+                        <span className="font-medium text-destructive">
+                          {error}
+                        </span>
+                      ) : isPastDate ? (
+                        "Dia passado · somente consulta"
+                      ) : (
+                        "Toque para selecionar · 2 toques para agendar"
+                      )}
+                    </p>
+
+                    {loading ? (
+                      <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
+                        Carregando...
+                      </span>
+                    ) : (
+                      selectedDate ===
+                        today && (
+                        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
+                          <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+                          Agora
+                        </span>
+                      )
+                    )}
+                  </>
                 )}
               </div>
 
@@ -2496,83 +2556,13 @@ function Agenda() {
                 </div>
               )}
 
-              {selectedSlots.length >
-                0 && (
-                <div className="animate-toolbar-in absolute inset-x-3 bottom-3 z-30 rounded-2xl border border-border bg-card/95 p-3 shadow-float backdrop-blur">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="mr-auto">
-                      <p className="text-xs font-bold text-foreground">
-                        {
-                          selectedSlots.length
-                        }{" "}
-                        horário(s)
-                      </p>
-
-                      <p className="text-[10px] text-muted-foreground">
-                        {
-                          groupConsecutiveSlots(
-                            selectedSlots,
-                          ).length
-                        }{" "}
-                        bloco(s) selecionado(s)
-                      </p>
-                    </div>
-
-                    {selectedSlots.length ===
-                      1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleNewAppointmentAtSlot(
-                            selectedSlots[0]!,
-                          )
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground shadow-sm transition-all active:scale-95"
-                      >
-                        <Plus className="size-3.5" />
-                        Novo atendimento
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={
-                        handleBlockSelectedSlots
-                      }
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-2 text-xs font-bold text-foreground transition-all active:scale-95"
-                    >
-                      <Lock className="size-3.5" />
-                      Trancar
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedSlots(
-                          [],
-                        )
-                      }
-                      className="rounded-xl px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-secondary"
-                    >
-                      Limpar
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div
                 ref={
                   agendaScrollRef
                 }
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
               >
-                <div
-                  className={
-                    selectedSlots.length > 0
-                      ? "pb-28"
-                      : "pb-8"
-                  }
-                >
+                <div className="pb-8">
                   <div className="relative grid grid-cols-[4rem_minmax(0,1fr)]">
                     {/* HORÁRIOS */}
                     <div className="relative">
@@ -3414,8 +3404,7 @@ function Agenda() {
           transition-all duration-300 ease-out
           ${
             showFloatingButton &&
-            !isPastDate &&
-            selectedSlots.length === 0
+            !isPastDate
               ? "pointer-events-auto scale-100 opacity-100"
               : "pointer-events-none scale-75 opacity-0"
           }
