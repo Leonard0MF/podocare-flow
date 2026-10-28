@@ -12,7 +12,9 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { AppointmentReminders } from "../components/AppointmentReminders";
 import { BottomNav } from "../components/BottomNav";
+import { Toaster } from "../components/ui/sonner";
 import { getSupabaseServerClient } from "../lib/supabase-server";
 
 /*
@@ -113,7 +115,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+      },
       { title: "Podocare" },
       { name: "description", content: "App de gestão para podólogas." },
       { property: "og:title", content: "Podocare" },
@@ -157,13 +162,15 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
+  const { queryClient, user } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <BottomNav />
+      <Toaster position="top-center" closeButton />
+      {user && <AppointmentReminders />}
     </QueryClientProvider>
   );
 }

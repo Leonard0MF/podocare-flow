@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Building2,
   Check,
+  KeyRound,
   Mail,
+  MessageCircle,
   Phone,
   Save,
   UserRound,
@@ -11,6 +14,10 @@ import {
   useState,
 } from "react";
 import { PageHeader, Screen } from "@/components/Screen";
+import {
+  formatPhone,
+  getMessageSignature,
+} from "@/lib/professional";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute(
@@ -31,8 +38,14 @@ export const Route = createFileRoute(
   component: Perfil,
 });
 
+const inputClass =
+  "min-h-12 w-full rounded-xl border border-border bg-background pl-10 pr-3 text-sm outline-none transition-colors focus:border-primary";
+
 function Perfil() {
   const [name, setName] =
+    useState("");
+
+  const [clinicName, setClinicName] =
     useState("");
 
   const [email, setEmail] =
@@ -53,6 +66,21 @@ function Perfil() {
   const [error, setError] =
     useState("");
 
+  const [newPassword, setNewPassword] =
+    useState("");
+
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
+
+  const [savingPassword, setSavingPassword] =
+    useState(false);
+
+  const [passwordMessage, setPasswordMessage] =
+    useState<{
+      type: "success" | "error";
+      text: string;
+    } | null>(null);
+
   useEffect(() => {
     async function loadUser() {
       setLoading(true);
@@ -71,21 +99,25 @@ function Perfil() {
         return;
       }
 
-      const userName =
-        user.user_metadata?.["name"];
-
-      const userPhone =
-        user.user_metadata?.["phone"];
+      const metadata =
+        user.user_metadata ?? {};
 
       setName(
-        typeof userName === "string"
-          ? userName
+        typeof metadata["name"] === "string"
+          ? metadata["name"]
+          : "",
+      );
+
+      setClinicName(
+        typeof metadata["clinic_name"] ===
+          "string"
+          ? metadata["clinic_name"]
           : "",
       );
 
       setPhone(
-        typeof userPhone === "string"
-          ? userPhone
+        typeof metadata["phone"] === "string"
+          ? formatPhone(metadata["phone"])
           : "",
       );
 
@@ -105,8 +137,8 @@ function Perfil() {
     const trimmedName =
       name.trim();
 
-    const trimmedPhone =
-      phone.trim();
+    const phoneDigits =
+      phone.replace(/\D/g, "");
 
     if (!trimmedName) {
       setError(
@@ -118,11 +150,26 @@ function Perfil() {
       return;
     }
 
+    if (
+      phoneDigits &&
+      phoneDigits.length !== 10 &&
+      phoneDigits.length !== 11
+    ) {
+      setError(
+        "Informe um telefone com DDD.",
+      );
+
+      setSaving(false);
+
+      return;
+    }
+
     const { error: updateError } =
       await supabase.auth.updateUser({
         data: {
           name: trimmedName,
-          phone: trimmedPhone,
+          clinic_name: clinicName.trim(),
+          phone: phoneDigits,
         },
       });
 
@@ -148,6 +195,55 @@ function Perfil() {
     setSaving(false);
   }
 
+  async function handleChangePassword() {
+    setPasswordMessage(null);
+
+    if (newPassword.length < 6) {
+      setPasswordMessage({
+        type: "error",
+        text: "A nova senha deve ter pelo menos 6 caracteres.",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({
+        type: "error",
+        text: "As senhas não conferem.",
+      });
+      return;
+    }
+
+    setSavingPassword(true);
+
+    const { error: passwordError } =
+      await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+    setSavingPassword(false);
+
+    if (passwordError) {
+      console.error(
+        "Erro ao alterar senha:",
+        passwordError,
+      );
+
+      setPasswordMessage({
+        type: "error",
+        text: "Não foi possível alterar a senha. Tente novamente.",
+      });
+      return;
+    }
+
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordMessage({
+      type: "success",
+      text: "Senha alterada com sucesso.",
+    });
+  }
+
   if (loading) {
     return (
       <Screen>
@@ -164,6 +260,12 @@ function Perfil() {
       </Screen>
     );
   }
+
+  const signature = getMessageSignature({
+    name: name.trim(),
+    clinicName: clinicName.trim(),
+    phone: phone.replace(/\D/g, ""),
+  });
 
   return (
     <Screen>
@@ -184,94 +286,99 @@ function Perfil() {
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Podóloga
+            {clinicName || "Podóloga"}
           </p>
         </section>
 
-        {/* Formulário */}
+        {/* Dados profissionais */}
         <section>
           <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Seus dados
+            Dados profissionais
           </h2>
 
           <div className="card-surface space-y-4 p-4">
-            <div>
-              <label
-                htmlFor="name"
-                className="mb-1.5 block text-xs font-semibold text-muted-foreground"
-              >
-                Nome
-              </label>
+            <Field
+              id="name"
+              label="Seu nome"
+              hint="Aparece na saudação da tela inicial."
+              icon={<UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />}
+            >
+              <input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(event) =>
+                  setName(event.target.value)
+                }
+                placeholder="Seu nome"
+                className={inputClass}
+              />
+            </Field>
 
-              <div className="relative">
-                <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Field
+              id="clinic"
+              label="Nome do consultório"
+              hint="Opcional. Assina as mensagens enviadas às clientes."
+              icon={<Building2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />}
+            >
+              <input
+                id="clinic"
+                type="text"
+                value={clinicName}
+                onChange={(event) =>
+                  setClinicName(event.target.value)
+                }
+                placeholder="Ex.: Espaço Podocare"
+                maxLength={80}
+                className={inputClass}
+              />
+            </Field>
 
-                <input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(event) =>
-                    setName(
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Seu nome"
-                  className="min-h-12 w-full rounded-xl border border-border bg-background pl-10 pr-3 text-sm outline-none transition-colors focus:border-primary"
-                />
-              </div>
+            <Field
+              id="phone"
+              label="Telefone de contato"
+              hint="Vai no fim das mensagens para a cliente falar com você ou remarcar."
+              icon={<Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />}
+            >
+              <input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                value={phone}
+                onChange={(event) =>
+                  setPhone(
+                    formatPhone(event.target.value),
+                  )
+                }
+                placeholder="(00) 00000-0000"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+        </section>
+
+        {/* Pré-visualização */}
+        <section>
+          <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Como suas mensagens terminam
+          </h2>
+
+          <div className="card-surface flex gap-3 p-4">
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600">
+              <MessageCircle className="size-4" />
             </div>
 
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-1.5 block text-xs font-semibold text-muted-foreground"
-              >
-                E-mail
-              </label>
-
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  disabled
-                  className="min-h-12 w-full cursor-not-allowed rounded-xl border border-border bg-secondary pl-10 pr-3 text-sm text-muted-foreground outline-none"
-                />
-              </div>
-
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                O e-mail da conta não pode ser alterado por aqui.
-              </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="phone"
-                className="mb-1.5 block text-xs font-semibold text-muted-foreground"
-              >
-                Telefone
-              </label>
-
-              <div className="relative">
-                <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-
-                <input
-                  id="phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(event) =>
-                    setPhone(
-                      event.target.value,
-                    )
-                  }
-                  placeholder="(00) 00000-0000"
-                  className="min-h-12 w-full rounded-xl border border-border bg-background pl-10 pr-3 text-sm outline-none transition-colors focus:border-primary"
-                />
-              </div>
+            <div className="min-w-0 whitespace-pre-line rounded-2xl rounded-tl-sm bg-secondary px-3 py-2 text-sm">
+              {[
+                "...pelo link abaixo.",
+                ...signature,
+              ].join("\n")}
             </div>
           </div>
+
+          <p className="mt-2 px-1 text-[11px] text-muted-foreground">
+            Usado nos lembretes de atendimento e nos links de ficha de anamnese enviados pelo WhatsApp.
+          </p>
         </section>
 
         {/* Feedback */}
@@ -301,7 +408,133 @@ function Perfil() {
             ? "Salvando..."
             : "Salvar alterações"}
         </button>
+
+        {/* Acesso */}
+        <section>
+          <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Acesso à conta
+          </h2>
+
+          <div className="card-surface space-y-4 p-4">
+            <Field
+              id="email"
+              label="E-mail de login"
+              hint="É com ele que você entra no Podocare."
+              icon={<Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />}
+            >
+              <input
+                id="email"
+                type="email"
+                value={email}
+                disabled
+                className="min-h-12 w-full cursor-not-allowed rounded-xl border border-border bg-secondary pl-10 pr-3 text-sm text-muted-foreground outline-none"
+              />
+            </Field>
+
+            <Field
+              id="new-password"
+              label="Nova senha"
+              icon={<KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />}
+            >
+              <input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) =>
+                  setNewPassword(event.target.value)
+                }
+                placeholder="Mínimo 6 caracteres"
+                className={inputClass}
+              />
+            </Field>
+
+            <Field
+              id="confirm-password"
+              label="Confirmar nova senha"
+              icon={<KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />}
+            >
+              <input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) =>
+                  setConfirmPassword(
+                    event.target.value,
+                  )
+                }
+                placeholder="Repita a nova senha"
+                className={inputClass}
+              />
+            </Field>
+
+            {passwordMessage && (
+              <p
+                className={`rounded-xl px-3 py-2 text-sm font-medium ${
+                  passwordMessage.type === "success"
+                    ? "bg-emerald-500/10 text-emerald-600"
+                    : "bg-destructive/10 text-destructive"
+                }`}
+              >
+                {passwordMessage.text}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleChangePassword}
+              disabled={
+                savingPassword ||
+                !newPassword ||
+                !confirmPassword
+              }
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-border bg-background text-sm font-semibold text-foreground transition-opacity disabled:opacity-50"
+            >
+              <KeyRound className="size-4" />
+              {savingPassword
+                ? "Alterando..."
+                : "Alterar senha"}
+            </button>
+          </div>
+        </section>
       </div>
     </Screen>
+  );
+}
+
+function Field({
+  id,
+  label,
+  hint,
+  icon,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-1.5 block text-xs font-semibold text-muted-foreground"
+      >
+        {label}
+      </label>
+
+      <div className="relative">
+        {icon}
+        {children}
+      </div>
+
+      {hint && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          {hint}
+        </p>
+      )}
+    </div>
   );
 }

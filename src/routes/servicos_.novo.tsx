@@ -6,6 +6,11 @@ import { Clock, Save } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { PageHeader, Screen } from "@/components/Screen";
+import { ServiceColorPicker } from "@/components/ServiceColorPicker";
+import {
+  DEFAULT_SERVICE_COLOR,
+  type ServiceColorKey,
+} from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/servicos_/novo")({
@@ -47,6 +52,9 @@ function NovoServico() {
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("");
   const [description, setDescription] = useState("");
+  const [color, setColor] = useState<ServiceColorKey>(
+    DEFAULT_SERVICE_COLOR,
+  );
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -122,6 +130,7 @@ function NovoServico() {
         price: numericPrice,
         duration: numericDuration,
         description: trimmedDescription || null,
+        color,
       });
 
     if (insertError) {
@@ -227,6 +236,18 @@ function NovoServico() {
               Entre 5 e 480 minutos.
             </p>
           </Field>
+        </Section>
+
+        <Section title="Cor na agenda">
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Os atendimentos deste serviço aparecem com esta cor na agenda.
+          </p>
+
+          <ServiceColorPicker
+            value={color}
+            onChange={setColor}
+            disabled={saving}
+          />
         </Section>
 
         <Section title="Descrição">

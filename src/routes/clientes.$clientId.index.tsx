@@ -14,6 +14,12 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Screen } from "@/components/Screen";
+import {
+  getMessageSignature,
+  getWhatsAppUrl,
+  type ProfessionalProfile,
+  useProfessionalProfile,
+} from "@/lib/professional";
 import { supabase } from "@/lib/supabase";
 
 type Client = {
@@ -49,21 +55,6 @@ export const Route = createFileRoute("/clientes/$clientId/")({
   component: Cliente,
 });
 
-function formatWhatsAppPhone(phone: string) {
-  const numbers = phone.replace(/\D/g, "");
-
-  if (!numbers) {
-    return "";
-  }
-
-  // Se o telefone já tiver código do Brasil, mantém.
-  if (numbers.startsWith("55")) {
-    return numbers;
-  }
-
-  return `55${numbers}`;
-}
-
 function getAnamneseUrl(token: string) {
   if (typeof window === "undefined") {
     return `/ficha/${token}`;
@@ -72,11 +63,14 @@ function getAnamneseUrl(token: string) {
   return `${window.location.origin}/ficha/${token}`;
 }
 
-function getWhatsAppUrl(client: Client, token: string) {
-  const phone = formatWhatsAppPhone(client.phone);
+function getAnamneseWhatsAppUrl(
+  client: Client,
+  token: string,
+  profile: ProfessionalProfile,
+) {
   const fichaUrl = getAnamneseUrl(token);
 
-  const message = [
+  return getWhatsAppUrl(client.phone, [
     `Olá, ${client.name.split(" ")[0]}! 😊`,
     "",
     "Antes do seu atendimento, preciso que você preencha sua ficha de anamnese.",
@@ -85,13 +79,13 @@ function getWhatsAppUrl(client: Client, token: string) {
     fichaUrl,
     "",
     "Obrigado!",
-  ].join("\n");
-
-  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    ...getMessageSignature(profile),
+  ]);
 }
 
 function Cliente() {
   const { clientId } = Route.useParams();
+  const profile = useProfessionalProfile();
 
   const [client, setClient] = useState<Client | null>(null);
   const [anamnese, setAnamnese] = useState<Anamnese | null>(null);
@@ -460,9 +454,10 @@ function Cliente() {
                 </Link>
 
                 <a
-                  href={getWhatsAppUrl(
+                  href={getAnamneseWhatsAppUrl(
                     client,
                     anamnese.public_token,
+                    profile,
                   )}
                   target="_blank"
                   rel="noreferrer"

@@ -7,6 +7,11 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Screen } from "@/components/Screen";
+import { ServiceColorPicker } from "@/components/ServiceColorPicker";
+import {
+  getServiceColor,
+  type ServiceColorKey,
+} from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/servicos_/$serviceId/editar")({
@@ -30,6 +35,9 @@ function EditarServico() {
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("");
   const [description, setDescription] = useState("");
+  const [color, setColor] = useState<ServiceColorKey>(
+    getServiceColor(null).key,
+  );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,7 +61,7 @@ function EditarServico() {
 
       const { data, error: serviceError } = await supabase
         .from("services")
-        .select("id, name, price, duration, description")
+        .select("*")
         .eq("id", serviceId)
         .eq("user_id", user.id)
         .single();
@@ -69,6 +77,7 @@ function EditarServico() {
       setPrice(String(data.price));
       setDuration(String(data.duration));
       setDescription(data.description ?? "");
+      setColor(getServiceColor(data.color).key);
 
       setLoading(false);
     }
@@ -138,6 +147,7 @@ function EditarServico() {
         price: numericPrice,
         duration: numericDuration,
         description: description.trim() || null,
+        color,
       })
       .eq("id", serviceId)
       .eq("user_id", user.id);
@@ -354,6 +364,24 @@ function EditarServico() {
               Entre 5 e 480 minutos.
             </p>
           </div>
+        </section>
+
+        <section className="card-surface space-y-3 p-5">
+          <div>
+            <p className="text-sm font-semibold">
+              Cor na agenda
+            </p>
+
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Os atendimentos deste serviço aparecem com esta cor na agenda.
+            </p>
+          </div>
+
+          <ServiceColorPicker
+            value={color}
+            onChange={setColor}
+            disabled={saving || deleting}
+          />
         </section>
 
         <section className="card-surface p-5">

@@ -15,6 +15,7 @@ import {
   Plus,
   Unlock,
   UserRound,
+  MessageCircle,
   XCircle,
 } from "lucide-react";
 import {
@@ -30,6 +31,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import {
+  getMessageSignature,
+  getWhatsAppUrl,
+  useProfessionalProfile,
+} from "@/lib/professional";
+import { getServiceColor, withAlpha } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/agenda")({
@@ -73,6 +80,7 @@ type Appointment = {
     name: string;
     price: number;
     duration: number;
+    color?: string | null;
   } | null;
 };
 
@@ -411,6 +419,7 @@ function formatMonth(
 
 function Agenda() {
   const navigate = useNavigate();
+  const profile = useProfessionalProfile();
 
   const [
     appointments,
@@ -568,6 +577,30 @@ function Agenda() {
       );
   }, []);
 
+  useEffect(() => {
+    if (selectedDate !== today) {
+      return;
+    }
+
+    setSelectedSlots((current) => {
+      const stillFuture =
+        current.filter(
+          (slot) =>
+            timeToMinutes(slot) >
+            currentMinutes,
+        );
+
+      return stillFuture.length ===
+        current.length
+        ? current
+        : stillFuture;
+    });
+  }, [
+    currentMinutes,
+    selectedDate,
+    today,
+  ]);
+
   /*
    * CARREGA ATENDIMENTOS
    */
@@ -603,11 +636,7 @@ function Agenda() {
             name,
             phone
           ),
-          service:services (
-            name,
-            price,
-            duration
-          )
+          service:services ( * )
         `)
         .eq(
           "user_id",
@@ -1253,6 +1282,55 @@ function Agenda() {
     );
   }
 
+  /*
+   * Horário que já começou (antes da linha de "agora")
+   * ou de um dia passado: não pode ser selecionado.
+   */
+  function isSlotPast(slot: string) {
+    if (isPastDate) {
+      return true;
+    }
+
+    return (
+      selectedDate === today &&
+      timeToMinutes(slot) <=
+        currentMinutes
+    );
+  }
+
+  function getReminderWhatsAppUrl(
+    appointment: Appointment,
+  ) {
+    if (!appointment.client?.phone) {
+      return null;
+    }
+
+    const day =
+      appointment.appointment_date ===
+      today
+        ? "hoje"
+        : appointment.appointment_date ===
+            addDays(today, 1)
+          ? "amanhã"
+          : `${formatLongDate(appointment.appointment_date)}`;
+
+    const service = appointment.service?.name
+      ? ` de ${appointment.service.name}`
+      : "";
+
+    return getWhatsAppUrl(
+      appointment.client.phone,
+      [
+        `Olá, ${appointment.client.name.split(" ")[0]}! 😊`,
+        "",
+        `Passando para lembrar do seu atendimento${service} ${day} às ${normalizeTime(appointment.appointment_time)}.`,
+        "",
+        "Se precisar remarcar, é só me avisar por aqui.",
+        ...getMessageSignature(profile),
+      ],
+    );
+  }
+
   function getAppointmentsForDate(
     date: string,
   ) {
@@ -1266,7 +1344,7 @@ function Agenda() {
   function handleNewAppointmentAtSlot(
     slot: string,
   ) {
-    if (isPastDate) {
+    if (isSlotPast(slot)) {
       return;
     }
 
@@ -1282,7 +1360,7 @@ function Agenda() {
   function handleSlotInteraction(
     slot: string,
   ) {
-    if (isPastDate) {
+    if (isSlotPast(slot)) {
       return;
     }
 
@@ -2585,6 +2663,10 @@ function Agenda() {
                               slotMinutes +
                                 30;
 
+                          const isPast =
+                            !isCurrentSlot &&
+                            isSlotPast(slot);
+
                           return (
                             <div
                               key={
@@ -2599,7 +2681,9 @@ function Agenda() {
                                 className={`text-xs font-bold ${
                                   isCurrentSlot
                                     ? "text-primary"
-                                    : "text-muted-foreground"
+                                    : isPast
+                                      ? "text-muted-foreground/40"
+                                      : "text-muted-foreground"
                                 }`}
                               >
                                 {
@@ -2657,6 +2741,9 @@ function Agenda() {
                             !occupiedBy &&
                             !agendaBlock;
 
+                          const isPast =
+                            isSlotPast(slot);
+
                           return (
                             <button
                               key={
@@ -2665,7 +2752,7 @@ function Agenda() {
                               type="button"
                               disabled={
                                 !isAvailable ||
-                                isPastDate
+                                isPast
                               }
                               onClick={() =>
                                 handleSlotInteraction(
@@ -2673,26 +2760,33 @@ function Agenda() {
                                 )
                               }
                               className={`group relative block h-14 w-full touch-manipulation select-none border-b border-border/60 text-left transition-colors ${
-                                isSelected
-                                  ? "bg-primary/[0.025]"
-                                  : isCurrentSlot
+                                isPast
+                                  ? "cursor-not-allowed bg-muted/50"
+                                  : isSelected
                                     ? "bg-primary/[0.025]"
-                                    : "hover:bg-secondary/45"
+                                    : isCurrentSlot
+                                      ? "bg-primary/[0.025]"
+                                      : "hover:bg-secondary/45"
                               } ${
-                                isAvailable
+                                isAvailable &&
+                                !isPast
                                   ? "cursor-pointer"
                                   : "cursor-default"
                               }`}
-                              aria-label={`Horário ${slot}`}
+                              aria-label={
+                                isPast
+                                  ? `Horário ${slot} (já passou)`
+                                  : `Horário ${slot}`
+                              }
                             >
                               {isAvailable &&
-                                !isPastDate &&
+                                !isPast &&
                                 !isSelected && (
                                   <span className="pointer-events-none absolute inset-x-4 top-1/2 h-px -translate-y-1/2 bg-border/50 transition-all duration-200 group-hover:inset-x-2 group-hover:bg-primary/25" />
                                 )}
 
                               {isAvailable &&
-                                !isPastDate && (
+                                !isPast && (
                                 <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-secondary px-2 py-1 text-[9px] font-semibold text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                                   toque
                                 </span>
@@ -3038,6 +3132,12 @@ function Agenda() {
                             appointment.status ===
                             "concluido";
 
+                          const serviceColor =
+                            getServiceColor(
+                              appointment.service
+                                ?.color,
+                            ).hex;
+
                           return (
                             <button
                               key={
@@ -3049,16 +3149,32 @@ function Agenda() {
                                   appointment,
                                 )
                               }
-                              className={`absolute left-2 right-2 z-30 overflow-hidden rounded-2xl border p-3 text-left shadow-sm transition-all hover:shadow-card active:scale-[0.99] ${
+                              className={`absolute left-2 right-2 z-30 overflow-hidden rounded-2xl border border-l-4 p-3 text-left shadow-sm transition-all hover:shadow-card active:scale-[0.99] ${
                                 isCancelled
                                   ? "border-destructive/20 bg-destructive/5 hover:border-destructive/40"
                                   : isCompleted
-                                    ? "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
-                                    : "border-primary/20 bg-primary-soft hover:border-primary/40"
+                                    ? "opacity-75"
+                                    : ""
                               }`}
                               style={{
                                 top,
                                 height,
+                                ...(isCancelled
+                                  ? {}
+                                  : {
+                                      backgroundColor:
+                                        withAlpha(
+                                          serviceColor,
+                                          0.12,
+                                        ),
+                                      borderColor:
+                                        withAlpha(
+                                          serviceColor,
+                                          0.3,
+                                        ),
+                                      borderLeftColor:
+                                        serviceColor,
+                                    }),
                               }}
                             >
                               <div className="flex h-full min-h-0 flex-col">
@@ -3067,10 +3183,16 @@ function Agenda() {
                                     className={`grid size-10 shrink-0 place-items-center rounded-xl ${
                                       isCancelled
                                         ? "bg-destructive/10 text-destructive"
-                                        : isCompleted
-                                          ? "bg-emerald-500/10 text-emerald-600"
-                                          : "bg-primary text-primary-foreground"
+                                        : "text-white"
                                     }`}
+                                    style={
+                                      isCancelled
+                                        ? undefined
+                                        : {
+                                            backgroundColor:
+                                              serviceColor,
+                                          }
+                                    }
                                   >
                                     {isCancelled ? (
                                       <XCircle className="size-5" />
@@ -3327,6 +3449,26 @@ function Agenda() {
             </div>
 
             <div className="space-y-2 p-5">
+              {selectedAppointment.status ===
+                "agendado" &&
+                getReminderWhatsAppUrl(
+                  selectedAppointment,
+                ) && (
+                  <a
+                    href={
+                      getReminderWhatsAppUrl(
+                        selectedAppointment,
+                      )!
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/15"
+                  >
+                    <MessageCircle className="size-5" />
+                    Lembrar cliente pelo WhatsApp
+                  </a>
+                )}
+
               {selectedAppointment.status !==
                 "concluido" &&
                 selectedAppointment.status !==

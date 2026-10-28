@@ -1,12 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Bell,
+  BellRing,
   CalendarClock,
-  Check,
-  Clock,
+  Info,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { PageHeader, Screen } from "@/components/Screen";
+import {
+  NOTIFICATION_KEY,
+  REMINDER_KEY,
+  areNotificationsEnabled,
+  areRemindersEnabled,
+  requestNotificationPermission,
+  setStoredBoolean,
+  showSystemNotification,
+} from "@/lib/notifications";
 
 export const Route = createFileRoute(
   "/notificacoes",
@@ -26,108 +36,86 @@ export const Route = createFileRoute(
   component: Notificacoes,
 });
 
-const NOTIFICATION_KEY =
-  "podocare-notifications-enabled";
-
-const REMINDER_KEY =
-  "podocare-appointment-reminders";
-
-function getStoredBoolean(
-  key: string,
-  defaultValue: boolean,
-) {
-  if (typeof window === "undefined") {
-    return defaultValue;
-  }
-
-  const value = localStorage.getItem(key);
-
-  if (value === null) {
-    return defaultValue;
-  }
-
-  return value === "true";
-}
+type Permission =
+  | NotificationPermission
+  | "unsupported";
 
 function Notificacoes() {
-  const [enabled, setEnabled] = useState(true);
+  const [reminders, setReminders] =
+    useState(true);
 
-  const [appointmentReminders, setAppointmentReminders] =
+  const [systemNotifications, setSystemNotifications] =
     useState(true);
 
   const [permission, setPermission] =
-    useState<NotificationPermission | "unsupported">(
-      "default",
-    );
+    useState<Permission>("default");
 
   useEffect(() => {
-    setEnabled(
-      getStoredBoolean(
-        NOTIFICATION_KEY,
-        true,
-      ),
+    setReminders(areRemindersEnabled());
+    setSystemNotifications(
+      areNotificationsEnabled(),
     );
 
-    setAppointmentReminders(
-      getStoredBoolean(
-        REMINDER_KEY,
-        true,
-      ),
+    setPermission(
+      "Notification" in window
+        ? Notification.permission
+        : "unsupported",
     );
-
-    if ("Notification" in window) {
-      setPermission(
-        Notification.permission,
-      );
-    } else {
-      setPermission("unsupported");
-    }
   }, []);
 
-  async function handleToggleNotifications() {
-    const newValue = !enabled;
+  function handleToggleReminders() {
+    const newValue = !reminders;
 
-    if (
-      newValue &&
-      "Notification" in window &&
-      Notification.permission === "default"
-    ) {
+    setReminders(newValue);
+    setStoredBoolean(REMINDER_KEY, newValue);
+  }
+
+  async function handleToggleSystemNotifications() {
+    const newValue = !systemNotifications;
+
+    if (newValue) {
       const result =
-        await Notification.requestPermission();
+        await requestNotificationPermission();
 
       setPermission(result);
 
-      if (result === "denied") {
-        setEnabled(false);
+      if (result !== "granted") {
+        setSystemNotifications(false);
+        setStoredBoolean(NOTIFICATION_KEY, false);
 
-        localStorage.setItem(
-          NOTIFICATION_KEY,
-          "false",
-        );
+        if (result === "denied") {
+          toast.error(
+            "As notificações estão bloqueadas no navegador. Libere nas configurações do site.",
+          );
+        }
 
         return;
       }
     }
 
-    setEnabled(newValue);
+    setSystemNotifications(newValue);
+    setStoredBoolean(NOTIFICATION_KEY, newValue);
+  }
 
-    localStorage.setItem(
-      NOTIFICATION_KEY,
-      String(newValue),
+  function handleTest() {
+    toast("Atendimento em 15 min · 14:30", {
+      description:
+        "Exemplo • Assim aparecem seus lembretes",
+      duration: 8_000,
+    });
+
+    showSystemNotification(
+      "Atendimento em 15 min · 14:30",
+      {
+        body: "Exemplo • Assim aparecem seus lembretes",
+        tag: "podocare-test",
+      },
     );
   }
 
-  function handleToggleReminders() {
-    const newValue =
-      !appointmentReminders;
-
-    setAppointmentReminders(newValue);
-
-    localStorage.setItem(
-      REMINDER_KEY,
-      String(newValue),
-    );
-  }
+  const systemActive =
+    systemNotifications &&
+    permission === "granted";
 
   return (
     <Screen>
@@ -137,179 +125,150 @@ function Notificacoes() {
       />
 
       <div className="space-y-6">
-        {/* Geral */}
-        <section>
-          <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Geral
-          </h2>
-
-          <div className="card-surface overflow-hidden">
-            <div className="flex min-h-[80px] items-center gap-4 px-4">
-              <span
-                className={`grid size-10 shrink-0 place-items-center rounded-xl ${
-                  enabled
-                    ? "bg-primary-soft text-primary"
-                    : "bg-secondary text-muted-foreground"
-                }`}
-              >
-                <Bell
-                  className="size-5"
-                  strokeWidth={1.9}
-                />
-              </span>
-
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                  Notificações
-                </p>
-
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Receber avisos do Podocare
-                </p>
-              </div>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={enabled}
-                aria-label="Ativar ou desativar notificações"
-                onClick={
-                  handleToggleNotifications
-                }
-                className={`relative flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-colors duration-200 ${
-                  enabled
-                    ? "bg-primary"
-                    : "bg-secondary"
-                }`}
-              >
-                <span
-                  className={`block size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
-                    enabled
-                      ? "translate-x-5"
-                      : "translate-x-0"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </section>
-
         {/* Lembretes */}
         <section>
           <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Lembretes
+            Lembretes de atendimento
           </h2>
 
           <div className="card-surface overflow-hidden">
-            <div
-              className={`flex min-h-[80px] items-center gap-4 px-4 transition-opacity ${
-                !enabled
-                  ? "opacity-50"
-                  : ""
-              }`}
-            >
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground">
+            <SwitchRow
+              icon={
                 <CalendarClock
                   className="size-5"
                   strokeWidth={1.9}
                 />
-              </span>
+              }
+              title="Avisos na tela"
+              description="Pop-up 1 hora antes, 15 minutos antes e na hora do atendimento"
+              checked={reminders}
+              onToggle={handleToggleReminders}
+            />
 
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                  Próximos atendimentos
-                </p>
-
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Avisar quando um atendimento estiver próximo
-                </p>
-              </div>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={
-                  appointmentReminders &&
-                  enabled
+            <div className="border-t border-border">
+              <SwitchRow
+                icon={
+                  <Bell
+                    className="size-5"
+                    strokeWidth={1.9}
+                  />
                 }
-                aria-label="Ativar ou desativar lembretes"
-                disabled={!enabled}
-                onClick={
-                  handleToggleReminders
+                title="Notificações do sistema"
+                description={
+                  permission === "unsupported"
+                    ? "Este navegador não oferece suporte."
+                    : permission === "denied"
+                      ? "Bloqueadas pelo navegador. Libere nas configurações do site."
+                      : "Avisa também quando o Podocare está em outra aba ou minimizado"
                 }
-                className={`relative flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-colors duration-200 ${
-                  appointmentReminders &&
-                  enabled
-                    ? "bg-primary"
-                    : "bg-secondary"
-                } disabled:cursor-not-allowed`}
-              >
-                <span
-                  className={`block size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
-                    appointmentReminders &&
-                    enabled
-                      ? "translate-x-5"
-                      : "translate-x-0"
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div
-              className={`flex items-center gap-4 border-t border-border px-4 py-4 transition-opacity ${
-                !enabled ||
-                !appointmentReminders
-                  ? "opacity-50"
-                  : ""
-              }`}
-            >
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground">
-                <Clock
-                  className="size-5"
-                  strokeWidth={1.9}
-                />
-              </span>
-
-              <div>
-                <p className="font-semibold">
-                  Lembrete
-                </p>
-
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Avisaremos antes do horário marcado.
-                </p>
-              </div>
+                checked={systemActive}
+                disabled={
+                  !reminders ||
+                  permission === "unsupported"
+                }
+                onToggle={
+                  handleToggleSystemNotifications
+                }
+              />
             </div>
           </div>
         </section>
 
-        {/* Status */}
+        {/* Testar */}
+        <button
+          type="button"
+          onClick={handleTest}
+          disabled={!reminders}
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold text-primary transition-opacity active:scale-[0.99] disabled:opacity-50"
+        >
+          <BellRing className="size-4" />
+          Testar aviso
+        </button>
+
+        {/* Como funciona */}
         <section className="card-surface p-4">
           <div className="flex items-start gap-3">
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600">
-              <Check className="size-4" />
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground">
+              <Info className="size-4" />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold">
-                Status das notificações
+                Como funcionam os avisos
               </p>
 
-              <p className="mt-1 text-xs text-muted-foreground">
-                {permission === "granted"
-                  ? "Permissão concedida neste dispositivo."
-                  : permission ===
-                      "denied"
-                    ? "As notificações foram bloqueadas pelo navegador."
-                    : permission ===
-                        "unsupported"
-                      ? "Este navegador não oferece suporte a notificações."
-                      : "A permissão ainda não foi solicitada."}
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                O Podocare é um app web: os lembretes
+                funcionam enquanto ele estiver aberto
+                no navegador, mesmo em outra aba. Com o
+                navegador fechado não é possível
+                avisar. As preferências valem para este
+                aparelho.
               </p>
             </div>
           </div>
         </section>
       </div>
     </Screen>
+  );
+}
+
+function SwitchRow({
+  icon,
+  title,
+  description,
+  checked,
+  disabled,
+  onToggle,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      className={`flex min-h-[80px] items-center gap-4 px-4 py-3 transition-opacity ${
+        disabled ? "opacity-50" : ""
+      }`}
+    >
+      <span
+        className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+          checked
+            ? "bg-primary-soft text-primary"
+            : "bg-secondary text-muted-foreground"
+        }`}
+      >
+        {icon}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">{title}</p>
+
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {description}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={title}
+        disabled={disabled}
+        onClick={onToggle}
+        className={`relative flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition-colors duration-200 disabled:cursor-not-allowed ${
+          checked ? "bg-primary" : "bg-secondary"
+        }`}
+      >
+        <span
+          className={`block size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
   );
 }

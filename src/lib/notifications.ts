@@ -1,11 +1,44 @@
-const NOTIFICATION_KEY = "podocare-notifications-enabled";
+/*
+ * Preferências (salvas por dispositivo, no localStorage).
+ *
+ * - Lembretes: avisos na tela (pop-up) antes de cada
+ *   atendimento, enquanto o Podocare estiver aberto.
+ * - Notificações do sistema: as mesmas mensagens também
+ *   aparecem como notificação do navegador quando a aba
+ *   não está visível. Um app web não consegue avisar com
+ *   o navegador/aba fechado.
+ */
+export const NOTIFICATION_KEY = "podocare-notifications-enabled";
+export const REMINDER_KEY = "podocare-appointment-reminders";
 
-export function areNotificationsEnabled() {
+function getStoredBoolean(key: string, defaultValue: boolean) {
   if (typeof window === "undefined") {
-    return false;
+    return defaultValue;
   }
 
-  return localStorage.getItem(NOTIFICATION_KEY) !== "false";
+  try {
+    const value = localStorage.getItem(key);
+
+    return value === null ? defaultValue : value === "true";
+  } catch {
+    return defaultValue;
+  }
+}
+
+export function setStoredBoolean(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // Sem storage (aba anônima etc.): vale só nesta sessão.
+  }
+}
+
+export function areNotificationsEnabled() {
+  return getStoredBoolean(NOTIFICATION_KEY, true);
+}
+
+export function areRemindersEnabled() {
+  return getStoredBoolean(REMINDER_KEY, true);
 }
 
 export function canSendBrowserNotification() {
@@ -32,6 +65,33 @@ export async function requestNotificationPermission() {
   return Notification.permission;
 }
 
+/*
+ * Mostra uma notificação do sistema, se permitido.
+ *
+ * No Chrome para Android o construtor `new Notification()`
+ * não é suportado e lança erro; nesse caso o aviso fica só
+ * na tela.
+ */
+export function showSystemNotification(
+  title: string,
+  options: NotificationOptions,
+) {
+  if (!areNotificationsEnabled() || !canSendBrowserNotification()) {
+    return false;
+  }
+
+  try {
+    new Notification(title, {
+      icon: "/favicon.ico",
+      ...options,
+    });
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 type AppointmentNotificationData = {
   clientName: string;
   serviceName: string;
@@ -55,19 +115,58 @@ export function notifyAppointmentCreated({
   date,
   time,
 }: AppointmentNotificationData) {
-  if (!areNotificationsEnabled()) {
-    return;
-  }
-
-  if (!canSendBrowserNotification()) {
-    return;
-  }
-
-  const formattedDate = formatAppointmentDate(date);
-
-  new Notification("Atendimento agendado", {
-    body: `${clientName} • ${serviceName}\n${formattedDate} às ${time}`,
-    icon: "/favicon.ico",
+  showSystemNotification("Atendimento agendado", {
+    body: `${clientName} • ${serviceName}\n${formatAppointmentDate(date)} às ${time}`,
     tag: `appointment-${date}-${time}-${clientName}`,
   });
+}
+
+/*
+ * Etapas dos lembretes, em minutos antes do início.
+ */
+export const REMINDER_STAGES = [60, 15, 0] as const;
+
+export type ReminderStage = (typeof REMINDER_STAGES)[number];
+
+/*
+ * Em que etapa um atendimento está, dado quantos minutos
+ * faltam. Depois de 10 min do início não avisa mais.
+ */
+export function getReminderStage(
+  minutesUntil: number,
+): ReminderStage | null {
+  if (minutesUntil < -10) {
+    return null;
+  }
+
+  if (minutesUntil <= 0) {
+    return 0;
+  }
+
+  if (minutesUntil <= 15) {
+    return 15;
+  }
+
+  if (minutesUntil <= 60) {
+    return 60;
+  }
+
+  return null;
+}
+
+export function formatMinutesUntil(minutes: number) {
+  if (minutes <= 0) {
+    return "agora";
+  }
+
+  if (minutes < 60) {
+    return `em ${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  return rest
+    ? `em ${hours}h${String(rest).padStart(2, "0")}`
+    : `em ${hours}h`;
 }

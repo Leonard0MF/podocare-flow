@@ -246,7 +246,7 @@ function Configuracoes() {
               </span>
 
               <span className="rounded-lg bg-secondary px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
-                v1.0.0
+                v2.0.0.0
               </span>
             </div>
           </div>
@@ -288,7 +288,7 @@ function Configuracoes() {
 
         <div className="flex items-center justify-center gap-2 pb-4 text-xs text-muted-foreground">
           <Settings className="size-3.5" />
-          <span>Podocare · v1.0.0</span>
+          <span>Podocare · v2.0.0.0</span>
         </div>
       </div>
     </Screen>

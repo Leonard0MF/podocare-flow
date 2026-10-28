@@ -7,6 +7,8 @@ import {
 import { Plus, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Screen } from "@/components/Screen";
+import { formatMinutesUntil } from "@/lib/notifications";
+import { getServiceColor } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/")({
@@ -53,6 +55,7 @@ type Appointment = {
     name: string;
     duration: number;
     price: number;
+    color?: string | null;
   } | null;
 };
 
@@ -104,23 +107,6 @@ function formatPrice(value: number) {
     currency: "BRL",
     maximumFractionDigits: 0,
   });
-}
-
-function formatTimeUntil(minutes: number) {
-  if (minutes <= 0) {
-    return "agora";
-  }
-
-  if (minutes < 60) {
-    return `em ${minutes} min`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-
-  return rest
-    ? `em ${hours}h${String(rest).padStart(2, "0")}`
-    : `em ${hours}h`;
 }
 
 function getGreeting() {
@@ -237,11 +223,7 @@ function Home() {
           client:clients (
             name
           ),
-          service:services (
-            name,
-            duration,
-            price
-          )
+          service:services ( * )
         `)
         .eq("user_id", user.id)
         .eq("appointment_date", today)
@@ -461,13 +443,20 @@ function Home() {
                       ) : null}
                     </div>
 
-                    <div className="h-9 w-px shrink-0 bg-border" />
+                    <div
+                      className="h-9 w-1 shrink-0 rounded-full"
+                      style={{
+                        backgroundColor: getServiceColor(
+                          appointment.service?.color,
+                        ).hex,
+                      }}
+                    />
 
                     <div className="min-w-0 flex-1">
                       {isNext && (
                         <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
                           Próximo ·{" "}
-                          {formatTimeUntil(
+                          {formatMinutesUntil(
                             startMinutes - currentMinutes,
                           )}
                         </p>

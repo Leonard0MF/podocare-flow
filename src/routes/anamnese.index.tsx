@@ -12,6 +12,11 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import {
+  getMessageSignature,
+  getWhatsAppUrl,
+  useProfessionalProfile,
+} from "@/lib/professional";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/anamnese/")({
@@ -39,6 +44,7 @@ function AnamnesePage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const profile = useProfessionalProfile();
 
   async function loadData() {
     setLoading(true);
@@ -122,18 +128,14 @@ function AnamnesePage() {
       return null;
     }
 
-    const phone = client.phone.replace(/\D/g, "");
-    const normalizedPhone = phone.startsWith("55")
-      ? phone
-      : `55${phone}`;
-
     const url = `${window.location.origin}/ficha/${anamnese.public_token}`;
 
-    const message = encodeURIComponent(
-      `Olá, ${client.name}! Preparamos sua ficha de anamnese. Você pode preenchê-la pelo link abaixo:\n\n${url}`,
-    );
-
-    return `https://wa.me/${normalizedPhone}?text=${message}`;
+    return getWhatsAppUrl(client.phone, [
+      `Olá, ${client.name}! Preparamos sua ficha de anamnese. Você pode preenchê-la pelo link abaixo:`,
+      "",
+      url,
+      ...getMessageSignature(profile),
+    ]);
   }
 
   const filteredAnamneses = useMemo(() => {

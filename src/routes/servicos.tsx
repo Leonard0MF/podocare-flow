@@ -8,6 +8,7 @@ import {
 import { useEffect, useState } from "react";
 import { PageHeader, Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
+import { getServiceColor, withAlpha } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/servicos")({
@@ -38,6 +39,7 @@ type Service = {
   price: number;
   duration: number;
   description: string | null;
+  color?: string | null;
 };
 
 function formatPrice(value: number) {
@@ -69,7 +71,7 @@ function Servicos() {
 
     const { data, error: servicesError } = await supabase
       .from("services")
-      .select("id, name, price, duration, description")
+      .select("*")
       .eq("user_id", user.id)
       .order("name", { ascending: true });
 
@@ -197,8 +199,17 @@ function Servicos() {
               className="card-surface p-5"
             >
               <div className="flex items-start gap-4">
-                <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary-soft">
-                  <Scissors className="size-5 text-primary" />
+                <div
+                  className="grid size-11 shrink-0 place-items-center rounded-xl"
+                  style={{
+                    backgroundColor: withAlpha(
+                      getServiceColor(service.color).hex,
+                      0.14,
+                    ),
+                    color: getServiceColor(service.color).hex,
+                  }}
+                >
+                  <Scissors className="size-5" />
                 </div>
 
                 <div className="min-w-0 flex-1">
