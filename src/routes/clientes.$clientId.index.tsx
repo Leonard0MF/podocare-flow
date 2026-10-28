@@ -1,4 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+} from "@tanstack/react-router";
 import {
   ArrowLeft,
   CalendarDays,
@@ -13,6 +17,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ClientHistory } from "@/components/ClientHistory";
 import { Screen } from "@/components/Screen";
 import {
   getMessageSignature,
@@ -92,6 +97,53 @@ function Cliente() {
 
   const [loading, setLoading] = useState(true);
   const [loadingAnamnese, setLoadingAnamnese] = useState(true);
+  const [creatingAnamnese, setCreatingAnamnese] =
+    useState(false);
+  const [anamneseError, setAnamneseError] = useState("");
+
+  const navigate = useNavigate();
+
+  /*
+   * Cria a ficha (pendente) e abre o preenchimento.
+   */
+  async function handleCreateAnamnese() {
+    setCreatingAnamnese(true);
+    setAnamneseError("");
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCreatingAnamnese(false);
+      setAnamneseError("Sua sessão expirou. Faça login novamente.");
+      return;
+    }
+
+    const { data, error: insertError } = await supabase
+      .from("anamneses")
+      .insert({
+        user_id: user.id,
+        client_id: clientId,
+        public_token: crypto.randomUUID(),
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !data) {
+      console.error("Erro ao criar ficha:", insertError);
+      setCreatingAnamnese(false);
+      setAnamneseError(
+        "Não foi possível criar a ficha. Tente novamente.",
+      );
+      return;
+    }
+
+    await navigate({
+      to: "/anamnese/preencher/$id",
+      params: { id: data.id },
+    });
+  }
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -339,6 +391,9 @@ function Cliente() {
         )}
       </section>
 
+      {/* HISTÓRICO DE ATENDIMENTOS */}
+      <ClientHistory clientId={client.id} />
+
       {/* FICHA DE ANAMNESE */}
       <section className="card-surface overflow-hidden p-5">
         <div className="mb-5 flex items-start gap-3">
@@ -380,17 +435,26 @@ function Cliente() {
                     Este cliente ainda não possui uma ficha de
                     anamnese.
                   </p>
+
+                  {anamneseError && (
+                    <p className="mt-2 text-sm font-medium text-destructive">
+                      {anamneseError}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <Link
-                to="/anamnese/preencher/$id"
-                params={{ id: "" }}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              <button
+                type="button"
+                onClick={handleCreateAnamnese}
+                disabled={creatingAnamnese}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 <Plus className="size-4" />
-                Criar ficha
-              </Link>
+                {creatingAnamnese
+                  ? "Criando..."
+                  : "Criar ficha"}
+              </button>
             </div>
           </div>
         ) : isAnamneseFilled ? (

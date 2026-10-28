@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { getToday } from "@/lib/date";
 import {
+  APPOINTMENTS_CHANGED_EVENT,
   REMINDER_STAGES,
   areRemindersEnabled,
   formatMinutesUntil,
@@ -225,6 +226,10 @@ export function AppointmentReminders() {
       }
     }
 
+    function handleAppointmentsChanged() {
+      void loadAppointments();
+    }
+
     void loadAppointments();
 
     const checkInterval = window.setInterval(
@@ -237,6 +242,10 @@ export function AppointmentReminders() {
     }, RELOAD_INTERVAL_MS);
 
     document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener(
+      APPOINTMENTS_CHANGED_EVENT,
+      handleAppointmentsChanged,
+    );
 
     return () => {
       cancelled = true;
@@ -245,6 +254,10 @@ export function AppointmentReminders() {
       document.removeEventListener(
         "visibilitychange",
         handleVisibility,
+      );
+      window.removeEventListener(
+        APPOINTMENTS_CHANGED_EVENT,
+        handleAppointmentsChanged,
       );
     };
   }, [navigate]);

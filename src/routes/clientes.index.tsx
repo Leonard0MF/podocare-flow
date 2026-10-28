@@ -3,8 +3,11 @@ import { Plus, Search, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageHeader, Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/clientes/")({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       { title: "Clientes cadastrados — Podocare" },

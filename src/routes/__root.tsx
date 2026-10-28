@@ -107,6 +107,28 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async () => {
+    /*
+     * No navegador a sessão é lida do cookie pelo client do
+     * Supabase, sem ida ao servidor a cada troca de tela.
+     * O acesso aos dados continua protegido pelo RLS.
+     */
+    if (typeof window !== "undefined") {
+      const { supabase } = await import("../lib/supabase");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const user = session?.user
+        ? {
+            id: session.user.id,
+            email: session.user.email ?? null,
+          }
+        : null;
+
+      return { user };
+    }
+
     const user = await fetchUser();
 
     return { user };

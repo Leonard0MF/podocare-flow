@@ -3,8 +3,12 @@ import { Eye, EyeOff, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { supabase } from "@/lib/supabase";
+import { redirectIfAuthenticated } from "@/lib/auth-guard";
+import { translateAuthError } from "@/lib/errors";
 
 export const Route = createFileRoute("/cadastro")({
+  beforeLoad: redirectIfAuthenticated,
+
   head: () => ({
     meta: [
       { title: "Criar conta — Podocare" },
@@ -56,8 +60,8 @@ function Cadastro() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
+    if (password.length < 8) {
+      setError("A senha deve ter pelo menos 8 caracteres.");
       return;
     }
 
@@ -79,14 +83,11 @@ function Cadastro() {
     });
 
     if (signUpError) {
-  setLoading(false);
-
-  console.error("Erro ao criar conta:", signUpError);
-
-  setError(signUpError.message);
-
-  return;
-}
+      setLoading(false);
+      console.error("Erro ao criar conta:", signUpError);
+      setError(translateAuthError(signUpError));
+      return;
+    }
 
     setLoading(false);
 
@@ -204,7 +205,7 @@ function Cadastro() {
               id="password"
               label="Senha"
               value={password}
-              placeholder="Mínimo de 6 caracteres"
+              placeholder="Mínimo de 8 caracteres"
               visible={showPassword}
               disabled={loading}
               onChange={(value) => {

@@ -13,9 +13,18 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
-import { notifyAppointmentCreated } from "@/lib/notifications";
+import {
+  notifyAppointmentCreated,
+  notifyAppointmentsChanged,
+} from "@/lib/notifications";
+import { requireUser } from "@/lib/auth-guard";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const Route = createFileRoute("/atendimento/novo")({
+  beforeLoad: requireUser,
+
   /*
    * A Agenda abre esta tela com ?date=YYYY-MM-DD&time=HH:MM
    * (toque duplo num horário ou botão "+").
@@ -25,7 +34,19 @@ export const Route = createFileRoute("/atendimento/novo")({
   ): {
     date?: string | undefined;
     time?: string | undefined;
+    reschedule?: string | undefined;
+    client?: string | undefined;
   } => ({
+    reschedule:
+      typeof search["reschedule"] === "string" &&
+      UUID_PATTERN.test(search["reschedule"])
+        ? search["reschedule"]
+        : undefined,
+    client:
+      typeof search["client"] === "string" &&
+      UUID_PATTERN.test(search["client"])
+        ? search["client"]
+        : undefined,
     date:
       typeof search["date"] === "string" &&
       /^\d{4}-\d{2}-\d{2}$/.test(search["date"])
@@ -293,6 +314,13 @@ function NovoAtendimento() {
 
   const search = Route.useSearch();
 
+  /*
+   * Modo remarcar: edita o atendimento existente em vez de
+   * criar um novo, e ele não conta como conflito.
+   */
+  const rescheduleId = search.reschedule ?? null;
+  const isReschedule = rescheduleId !== null;
+
   const [date, setDate] = useState(
     search.date && search.date >= today
       ? search.date
@@ -439,10 +467,79 @@ function NovoAtendimento() {
         })),
       );
 
+      const clientList = clientsData ?? [];
+
+      function preselectClient(id: string) {
+        const client = clientList.find(
+          (item) => item.id === id,
+        );
+
+        if (client) {
+          setClientId(client.id);
+          setClientSearch(client.name);
+        }
+      }
+
+      if (search.client) {
+        preselectClient(search.client);
+      }
+
+      if (rescheduleId) {
+        const {
+          data: original,
+          error: originalError,
+        } = await supabase
+          .from("appointments")
+          .select(
+            "client_id, service_id, appointment_date, appointment_time, payment_method, notes",
+          )
+          .eq("id", rescheduleId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (originalError || !original) {
+          console.error(
+            "Erro ao carregar atendimento para remarcar:",
+            originalError,
+          );
+
+          setError(
+            "Não foi possível carregar o atendimento para remarcar.",
+          );
+        } else {
+          preselectClient(original.client_id);
+
+          const service = (servicesData ?? []).find(
+            (item) => item.id === original.service_id,
+          );
+
+          if (service) {
+            setServiceId(service.id);
+            setServiceSearch(service.name);
+          }
+
+          setPayment(
+            original.payment_method ?? "Não informado",
+          );
+          setNotes(original.notes ?? "");
+
+          if (original.appointment_date >= today) {
+            const originalTime =
+              original.appointment_time.slice(0, 5);
+
+            setDate(original.appointment_date);
+            setTime(originalTime);
+            setRequestedTime(originalTime);
+          }
+        }
+      }
+
       setLoadingData(false);
     }
 
     loadData();
+    // Roda uma vez ao abrir a tela.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -528,7 +625,10 @@ function NovoAtendimento() {
       }
 
       setAppointments(
-        (appointmentsData ?? []) as Appointment[],
+        ((appointmentsData ?? []) as Appointment[]).filter(
+          (appointment) =>
+            appointment.id !== rescheduleId,
+        ),
       );
 
       setAgendaBlocks(
@@ -539,7 +639,7 @@ function NovoAtendimento() {
     }
 
     loadSchedule();
-  }, [date]);
+  }, [date, rescheduleId]);
 
   function handleDateChange(value: string) {
     if (!value) return;
@@ -1219,8 +1319,15 @@ function NovoAtendimento() {
       return;
     }
 
+    const otherAppointments = (
+      latestAppointments ?? []
+    ).filter(
+      (appointment) =>
+        appointment.id !== rescheduleId,
+    );
+
     const latestConflict =
-      (latestAppointments ?? []).some(
+      otherAppointments.some(
         (appointment) => {
           if (
             appointment.status?.toLowerCase() ===
@@ -1254,8 +1361,7 @@ function NovoAtendimento() {
       setLoadingSubmit(false);
 
       setAppointments(
-        (latestAppointments ??
-          []) as Appointment[],
+        otherAppointments as Appointment[],
       );
 
       setError(
@@ -1265,19 +1371,28 @@ function NovoAtendimento() {
       return;
     }
 
-    const { error: insertError } =
-      await supabase
-        .from("appointments")
-        .insert({
-          user_id: user.id,
-          client_id: clientId,
-          service_id: serviceId,
-          appointment_date: date,
-          appointment_time: time,
-          payment_method: payment,
-          notes: notes.trim() || null,
-          status: "agendado",
-        });
+    const appointmentData = {
+      client_id: clientId,
+      service_id: serviceId,
+      appointment_date: date,
+      appointment_time: time,
+      payment_method: payment,
+      notes: notes.trim() || null,
+      status: "agendado",
+    };
+
+    const { error: insertError } = rescheduleId
+      ? await supabase
+          .from("appointments")
+          .update(appointmentData)
+          .eq("id", rescheduleId)
+          .eq("user_id", user.id)
+      : await supabase
+          .from("appointments")
+          .insert({
+            user_id: user.id,
+            ...appointmentData,
+          });
 
     if (insertError) {
       console.error(
@@ -1304,19 +1419,25 @@ function NovoAtendimento() {
         );
       } else {
         setError(
-          "Não foi possível criar o atendimento. Tente novamente.",
+          isReschedule
+            ? "Não foi possível remarcar o atendimento. Tente novamente."
+            : "Não foi possível criar o atendimento. Tente novamente.",
         );
       }
 
       return;
     }
 
-    notifyAppointmentCreated({
-      clientName: selectedClient.name,
-      serviceName: selectedService.name,
-      date,
-      time,
-    });
+    notifyAppointmentsChanged();
+
+    if (!isReschedule) {
+      notifyAppointmentCreated({
+        clientName: selectedClient.name,
+        serviceName: selectedService.name,
+        date,
+        time,
+      });
+    }
 
     setLoadingSubmit(false);
 
@@ -1324,6 +1445,7 @@ function NovoAtendimento() {
       to: "/agenda",
     });
   }
+
 
   return (
     <Screen>
@@ -1338,11 +1460,15 @@ function NovoAtendimento() {
 
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">
-            Novo atendimento
+            {isReschedule
+              ? "Remarcar atendimento"
+              : "Novo atendimento"}
           </h1>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Agende um novo atendimento.
+            {isReschedule
+              ? "Escolha a nova data e horário."
+              : "Agende um novo atendimento."}
           </p>
         </div>
       </header>
@@ -2104,8 +2230,10 @@ function NovoAtendimento() {
             <Save className="size-5" />
 
             {loadingSubmit
-              ? "Agendando..."
-              : "Agendar atendimento"}
+              ? "Salvando..."
+              : isReschedule
+                ? "Salvar novo horário"
+                : "Agendar atendimento"}
           </button>
         </form>
       )}

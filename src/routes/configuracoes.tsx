@@ -19,10 +19,13 @@ import {
   type Theme,
 } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute(
   "/configuracoes",
 )({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       {

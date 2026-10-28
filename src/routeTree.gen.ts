@@ -17,6 +17,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaisRouteImport } from './routes/mais'
 import { Route as NotificacoesRouteImport } from './routes/notificacoes'
 import { Route as PerfilRouteImport } from './routes/perfil'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
+import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as AnamneseIndexRouteImport } from './routes/anamnese.index'
 import { Route as AtendimentoNovoRouteImport } from './routes/atendimento.novo'
@@ -69,6 +71,16 @@ const NotificacoesRoute = NotificacoesRouteImport.update({
 const PerfilRoute = PerfilRouteImport.update({
   id: '/perfil',
   path: '/perfil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RelatoriosRoute = RelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ServicosRoute = ServicosRouteImport.update({
@@ -146,6 +158,8 @@ export interface FileRoutesByFullPath {
   '/mais': typeof MaisRoute
   '/notificacoes': typeof NotificacoesRoute
   '/perfil': typeof PerfilRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
   '/atendimento/novo': typeof AtendimentoNovoRoute
   '/clientes/$clientId': typeof ClientesClientIdRouteWithChildren
@@ -169,6 +183,8 @@ export interface FileRoutesByTo {
   '/mais': typeof MaisRoute
   '/notificacoes': typeof NotificacoesRoute
   '/perfil': typeof PerfilRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
   '/atendimento/novo': typeof AtendimentoNovoRoute
   '/clientes/novo': typeof ClientesNovoRoute
@@ -192,6 +208,8 @@ export interface FileRoutesById {
   '/mais': typeof MaisRoute
   '/notificacoes': typeof NotificacoesRoute
   '/perfil': typeof PerfilRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
+  '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
   '/atendimento/novo': typeof AtendimentoNovoRoute
   '/clientes/$clientId': typeof ClientesClientIdRouteWithChildren
@@ -217,6 +235,8 @@ export interface FileRouteTypes {
     | '/mais'
     | '/notificacoes'
     | '/perfil'
+    | '/redefinir-senha'
+    | '/relatorios'
     | '/servicos'
     | '/atendimento/novo'
     | '/clientes/$clientId'
@@ -240,6 +260,8 @@ export interface FileRouteTypes {
     | '/mais'
     | '/notificacoes'
     | '/perfil'
+    | '/redefinir-senha'
+    | '/relatorios'
     | '/servicos'
     | '/atendimento/novo'
     | '/clientes/novo'
@@ -262,6 +284,8 @@ export interface FileRouteTypes {
     | '/mais'
     | '/notificacoes'
     | '/perfil'
+    | '/redefinir-senha'
+    | '/relatorios'
     | '/servicos'
     | '/atendimento/novo'
     | '/clientes/$clientId'
@@ -286,6 +310,8 @@ export interface RootRouteChildren {
   MaisRoute: typeof MaisRoute
   NotificacoesRoute: typeof NotificacoesRoute
   PerfilRoute: typeof PerfilRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
+  RelatoriosRoute: typeof RelatoriosRoute
   ServicosRoute: typeof ServicosRoute
   AtendimentoNovoRoute: typeof AtendimentoNovoRoute
   ClientesClientIdRoute: typeof ClientesClientIdRouteWithChildren
@@ -355,6 +381,20 @@ declare module '@tanstack/react-router' {
       path: '/perfil'
       fullPath: '/perfil'
       preLoaderRoute: typeof PerfilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/relatorios': {
+      id: '/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof RelatoriosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/servicos': {
@@ -473,6 +513,8 @@ const rootRouteChildren: RootRouteChildren = {
   MaisRoute: MaisRoute,
   NotificacoesRoute: NotificacoesRoute,
   PerfilRoute: PerfilRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
+  RelatoriosRoute: RelatoriosRoute,
   ServicosRoute: ServicosRoute,
   AtendimentoNovoRoute: AtendimentoNovoRoute,
   ClientesClientIdRoute: ClientesClientIdRouteWithChildren,

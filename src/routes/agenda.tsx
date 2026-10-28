@@ -31,6 +31,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { notifyAppointmentsChanged } from "@/lib/notifications";
 import {
   getMessageSignature,
   getWhatsAppUrl,
@@ -39,8 +40,11 @@ import {
 import { createPortal } from "react-dom";
 import { getServiceColor, withAlpha } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/agenda")({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       {
@@ -883,6 +887,15 @@ function Agenda() {
         );
 
       const {
+        data: { user },
+      } =
+        await supabase.auth.getUser();
+
+      if (!user) {
+        return;
+      }
+
+      const {
         error: updateError,
       } = await supabase
         .from("appointments")
@@ -890,7 +903,8 @@ function Agenda() {
           status:
             "concluido",
         })
-        .in("id", ids);
+        .in("id", ids)
+        .eq("user_id", user.id);
 
       if (updateError) {
         console.error(
@@ -1847,6 +1861,8 @@ function Agenda() {
       return;
     }
 
+    notifyAppointmentsChanged();
+
     setAppointments(
       (current) =>
         current.map(
@@ -1929,6 +1945,8 @@ function Agenda() {
       return;
     }
 
+    notifyAppointmentsChanged();
+
     const deletedId =
       selectedAppointment.id;
 
@@ -2008,6 +2026,8 @@ function Agenda() {
       return;
     }
 
+    notifyAppointmentsChanged();
+
     setAppointments(
       (current) =>
         current.map(
@@ -2037,6 +2057,112 @@ function Agenda() {
             }
           : null,
     );
+  }
+
+  async function handleNoShowAppointment() {
+    if (
+      !selectedAppointment ||
+      selectedAppointment.status ===
+        "cancelado" ||
+      selectedAppointment.status ===
+        "faltou"
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "Marcar que a cliente não compareceu?",
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      setError(
+        "Usuário não autenticado.",
+      );
+      return;
+    }
+
+    const {
+      error: updateError,
+    } = await supabase
+      .from("appointments")
+      .update({
+        status: "faltou",
+        completed_at: null,
+      })
+      .eq(
+        "id",
+        selectedAppointment.id,
+      )
+      .eq(
+        "user_id",
+        user.id,
+      );
+
+    if (updateError) {
+      console.error(
+        "Erro ao marcar falta:",
+        updateError,
+      );
+
+      setError(
+        "Não foi possível marcar a falta.",
+      );
+
+      return;
+    }
+
+    notifyAppointmentsChanged();
+
+    setAppointments(
+      (current) =>
+        current.map(
+          (appointment) =>
+            appointment.id ===
+            selectedAppointment.id
+              ? {
+                  ...appointment,
+                  status: "faltou",
+                  completed_at: null,
+                }
+              : appointment,
+        ),
+    );
+
+    setSelectedAppointment(
+      (current) =>
+        current
+          ? {
+              ...current,
+              status: "faltou",
+              completed_at: null,
+            }
+          : null,
+    );
+  }
+
+  function handleRescheduleAppointment() {
+    if (!selectedAppointment) {
+      return;
+    }
+
+    const id = selectedAppointment.id;
+
+    setSelectedAppointment(null);
+
+    navigate({
+      to: "/atendimento/novo",
+      search: { reschedule: id },
+    });
   }
 
   function handleSelectDate(
@@ -3492,10 +3618,42 @@ function Agenda() {
                   </button>
                 )}
 
+              {selectedAppointment.status ===
+                "agendado" && (
+                <button
+                  type="button"
+                  onClick={
+                    handleRescheduleAppointment
+                  }
+                  className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-secondary px-4 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/80"
+                >
+                  <CalendarDays className="size-5 text-primary" />
+                  Remarcar
+                </button>
+              )}
+
+              {(selectedAppointment.status ===
+                "agendado" ||
+                selectedAppointment.status ===
+                  "concluido") && (
+                <button
+                  type="button"
+                  onClick={
+                    handleNoShowAppointment
+                  }
+                  className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-orange-500/10 px-4 text-sm font-semibold text-orange-600 transition-colors hover:bg-orange-500/15"
+                >
+                  <UserRound className="size-5" />
+                  Não compareceu
+                </button>
+              )}
+
               {selectedAppointment.status !==
                 "cancelado" &&
                 selectedAppointment.status !==
-                  "concluido" && (
+                  "concluido" &&
+                selectedAppointment.status !==
+                  "faltou" && (
                   <button
                     type="button"
                     onClick={

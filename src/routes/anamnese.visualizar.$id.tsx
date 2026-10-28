@@ -8,8 +8,11 @@ import {
   UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/anamnese/visualizar/$id")({
+  beforeLoad: requireUser,
+
   component: VisualizarAnamnesePage,
 });
 

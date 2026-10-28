@@ -2,8 +2,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Save } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/anamnese/preencher/$id")({
+  beforeLoad: requireUser,
+
   component: PreencherAnamnesePage,
 });
 

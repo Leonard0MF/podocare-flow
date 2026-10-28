@@ -12,8 +12,12 @@ import {
   setRememberMe,
   supabase,
 } from "../lib/supabase";
+import { redirectIfAuthenticated } from "@/lib/auth-guard";
+import { translateAuthError } from "@/lib/errors";
 
 export const Route = createFileRoute("/login")({
+  beforeLoad: redirectIfAuthenticated,
+
   component: LoginPage,
 });
 
@@ -69,11 +73,7 @@ function LoginPage() {
       });
 
       if (loginError) {
-        setError(
-          loginError.message === "Invalid login credentials"
-            ? "E-mail ou senha incorretos."
-            : loginError.message,
-        );
+        setError(translateAuthError(loginError));
         return;
       }
 
@@ -200,21 +200,30 @@ function LoginPage() {
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-3 select-none">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(event) =>
-                setRememberMeState(event.target.checked)
-              }
-              disabled={loading}
-              className="h-4 w-4 rounded border-input accent-primary"
-            />
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex cursor-pointer items-center gap-3 select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(event) =>
+                  setRememberMeState(event.target.checked)
+                }
+                disabled={loading}
+                className="h-4 w-4 rounded border-input accent-primary"
+              />
 
-            <span className="text-sm text-muted-foreground">
-              Manter-me conectado
-            </span>
-          </label>
+              <span className="text-sm text-muted-foreground">
+                Manter-me conectado
+              </span>
+            </label>
+
+            <Link
+              to="/redefinir-senha"
+              className="shrink-0 text-sm font-semibold text-primary"
+            >
+              Esqueci a senha
+            </Link>
+          </div>
 
           {error && (
             <div

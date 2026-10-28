@@ -10,8 +10,12 @@ import { PageHeader, Screen } from "@/components/Screen";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { getServiceColor, withAlpha } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
+
 
 export const Route = createFileRoute("/servicos")({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       { title: "Serviços — Podocare" },
@@ -120,7 +124,11 @@ function Servicos() {
 
     if (deleteError) {
       console.error("Erro ao excluir serviço:", deleteError);
-      setError("Não foi possível excluir o serviço.");
+      setError(
+        deleteError.code === "23503"
+          ? "Este serviço tem atendimentos vinculados e não pode ser excluído."
+          : "Não foi possível excluir o serviço.",
+      );
       setDeletingId(null);
       return;
     }

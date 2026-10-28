@@ -13,8 +13,12 @@ import {
   type ServiceColorKey,
 } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
+
 
 export const Route = createFileRoute("/servicos_/$serviceId/editar")({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       { title: "Editar serviço — Podocare" },
@@ -201,7 +205,9 @@ function EditarServico() {
         deleteError,
       );
       setError(
-        "Não foi possível excluir o serviço. Tente novamente.",
+        deleteError.code === "23503"
+          ? "Este serviço tem atendimentos vinculados e não pode ser excluído."
+          : "Não foi possível excluir o serviço. Tente novamente.",
       );
       setDeleting(false);
       return;

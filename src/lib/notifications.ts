@@ -170,3 +170,16 @@ export function formatMinutesUntil(minutes: number) {
     ? `em ${hours}h${String(rest).padStart(2, "0")}`
     : `em ${hours}h`;
 }
+
+/*
+ * Avisa o resto do app (ex.: lembretes) que os atendimentos
+ * mudaram, para recarregar na hora.
+ */
+export const APPOINTMENTS_CHANGED_EVENT =
+  "podocare:appointments-changed";
+
+export function notifyAppointmentsChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(APPOINTMENTS_CHANGED_EVENT));
+  }
+}

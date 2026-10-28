@@ -12,7 +12,12 @@ const items = [
  * Telas sem navegação: autenticação e a ficha pública,
  * que é aberta pela cliente.
  */
-const hiddenPrefixes = ["/login", "/cadastro", "/ficha"];
+const hiddenPrefixes = [
+  "/login",
+  "/cadastro",
+  "/redefinir-senha",
+  "/ficha",
+];
 
 export function BottomNav() {
   const pathname = useRouterState({

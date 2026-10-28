@@ -17,10 +17,13 @@ import {
   setStoredBoolean,
   showSystemNotification,
 } from "@/lib/notifications";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute(
   "/notificacoes",
 )({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       {

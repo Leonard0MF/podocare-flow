@@ -18,8 +18,11 @@ import {
   useProfessionalProfile,
 } from "@/lib/professional";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/anamnese/")({
+  beforeLoad: requireUser,
+
   component: AnamnesePage,
 });
 

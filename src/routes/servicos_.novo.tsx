@@ -12,8 +12,12 @@ import {
   type ServiceColorKey,
 } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
+import { friendlyDbError } from "@/lib/errors";
 
 export const Route = createFileRoute("/servicos_/novo")({
+  beforeLoad: requireUser,
+
   validateSearch: (
     search: Record<string, unknown>,
   ): { from?: "atendimento" | undefined } => ({
@@ -142,8 +146,10 @@ function NovoServico() {
       setSaving(false);
 
       setError(
-        insertError.message ||
+        friendlyDbError(
+          insertError,
           "Não foi possível cadastrar o serviço. Tente novamente.",
+        ),
       );
 
       return;

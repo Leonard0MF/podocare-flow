@@ -18,11 +18,15 @@ import {
   formatPhone,
   getMessageSignature,
 } from "@/lib/professional";
+import { translateAuthError } from "@/lib/errors";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute(
   "/perfil",
 )({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       {
@@ -198,10 +202,10 @@ function Perfil() {
   async function handleChangePassword() {
     setPasswordMessage(null);
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       setPasswordMessage({
         type: "error",
-        text: "A nova senha deve ter pelo menos 6 caracteres.",
+        text: "A nova senha deve ter pelo menos 8 caracteres.",
       });
       return;
     }
@@ -231,7 +235,10 @@ function Perfil() {
 
       setPasswordMessage({
         type: "error",
-        text: "Não foi possível alterar a senha. Tente novamente.",
+        text: translateAuthError(
+          passwordError,
+          "Não foi possível alterar a senha. Tente novamente.",
+        ),
       });
       return;
     }
@@ -444,7 +451,7 @@ function Perfil() {
                 onChange={(event) =>
                   setNewPassword(event.target.value)
                 }
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 8 caracteres"
                 className={inputClass}
               />
             </Field>

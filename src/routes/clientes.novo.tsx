@@ -8,8 +8,12 @@ import { useState } from "react";
 import { Screen } from "@/components/Screen";
 import { getToday } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
+import { requireUser } from "@/lib/auth-guard";
+import { friendlyDbError } from "@/lib/errors";
 
 export const Route = createFileRoute("/clientes/novo")({
+  beforeLoad: requireUser,
+
   validateSearch: (
     search: Record<string, unknown>,
   ): { from?: "atendimento" | undefined } => ({
@@ -224,8 +228,12 @@ function NovoCliente() {
       setLoading(false);
 
       setError(
-        insertError.message ||
-          "Não foi possível cadastrar o cliente. Tente novamente.",
+        insertError.code === "23505"
+          ? "Já existe uma cliente com esse CPF ou telefone."
+          : friendlyDbError(
+              insertError,
+              "Não foi possível cadastrar o cliente. Tente novamente.",
+            ),
       );
 
       return;

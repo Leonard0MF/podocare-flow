@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Bell,
+  BarChart3,
   ChevronRight,
   FileText,
   Scissors,
@@ -11,8 +12,11 @@ import { useEffect, useState } from "react";
 import { PageHeader, Screen } from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
 import { initializeTheme } from "@/lib/theme";
+import { requireUser } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/mais")({
+  beforeLoad: requireUser,
+
   head: () => ({
     meta: [
       { title: "Mais opções — Podocare" },
@@ -47,6 +51,12 @@ const mainItems = [
     description: "Fichas e informações dos pacientes",
     icon: FileText,
     to: "/anamnese" as const,
+  },
+  {
+    label: "Relatórios",
+    description: "Faturamento, serviços e faltas do mês",
+    icon: BarChart3,
+    to: "/relatorios" as const,
   },
   {
     label: "Notificações",
