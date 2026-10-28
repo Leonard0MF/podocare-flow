@@ -36,6 +36,7 @@ import {
   getWhatsAppUrl,
   useProfessionalProfile,
 } from "@/lib/professional";
+import { createPortal } from "react-dom";
 import { getServiceColor, withAlpha } from "@/lib/service-colors";
 import { supabase } from "@/lib/supabase";
 
@@ -3344,10 +3345,16 @@ function Agenda() {
 
       {renderMonthSheet()}
 
-      {/* MODAL DO ATENDIMENTO */}
-      {selectedAppointment && (
+      {/*
+       * MODAL DO ATENDIMENTO
+       *
+       * Vai para o <body> via portal: dentro do contêiner
+       * fixo da agenda o z-index ficaria abaixo da BottomNav.
+       */}
+      {selectedAppointment &&
+        createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-sm"
           onClick={() =>
             setSelectedAppointment(
               null,
@@ -3355,7 +3362,7 @@ function Agenda() {
           }
         >
           <div
-            className="w-full max-w-lg overflow-hidden rounded-3xl bg-card shadow-2xl"
+            className="max-h-full w-full max-w-lg overflow-y-auto overscroll-contain rounded-3xl bg-card shadow-2xl"
             onClick={(
               event,
             ) =>
@@ -3525,8 +3532,9 @@ function Agenda() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
 
       {/* NOVO ATENDIMENTO */}
       <Link
